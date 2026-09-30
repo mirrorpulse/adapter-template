@@ -35,7 +35,7 @@ Adapter settings are owned by MirrorPulse. Treat configuration values as version
 
 ## Packaging and signing
 
-Build self-contained or framework-dependent Worker payloads according to the release policy, then stage them under the runtime paths in `manifest.json`. Create a `.mpadapter` ZIP with forward-slash entry names. Release artifacts are signed before distribution; unsigned packages require the user's global developer-mode choice and a security warning.
+Build self-contained or framework-dependent Worker payloads according to the release policy, then stage them under the runtime paths in `manifest.json`. Create a `.mpadapter` ZIP with forward-slash entry names. Sign the inventory of all payload entries and embed its signature at `META-INF/mirrorpulse/signature.json` so the package can be installed by itself. Release artifacts are signed before distribution; unsigned packages require the user's global developer-mode choice and a security warning.
 
 ## Localization
 
