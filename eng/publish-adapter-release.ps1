@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param([Parameter(Mandatory)][string]$AssetDirectory, [Parameter(Mandatory)][string]$SourceSha, [switch]$DryRun)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'adapter-publication-policy.ps1')
 & (Join-Path $PSScriptRoot 'verify-adapter-release-assets.ps1') -AssetDirectory $AssetDirectory -SourceSha $SourceSha
 $manifest = Get-Content -LiteralPath (Join-Path $AssetDirectory 'provider-release.json') -Raw | ConvertFrom-Json
 $checkedSource = & git rev-parse HEAD
@@ -15,6 +16,6 @@ $assets = @($manifest.files | ForEach-Object { Join-Path $AssetDirectory $_.name
 $assets += Join-Path $AssetDirectory 'provider-release.json'
 & gh api --method POST "repos/$($manifest.repository)/git/refs" -f "ref=refs/tags/$($manifest.tag)" -f "sha=$SourceSha" --silent
 if ($LASTEXITCODE -ne 0) { throw 'Immutable release tag creation failed; do not overwrite an existing tag.' }
-$options = if ($manifest.channel -ceq 'preview') { @('--prerelease', '--latest=false') } else { @('--latest=true') }
-& gh release create $manifest.tag @assets --repo $manifest.repository --verify-tag --title "Adapter $($manifest.version)" --notes 'Signed process Adapter with native x64 and ARM64 conformance, production installation verification, and a fixed SHA256 inventory.' @options
+$releaseArguments = @(Get-AdapterReleaseCreateArguments -Repository $manifest.repository -Tag $manifest.tag -Version $manifest.version -Channel $manifest.channel -Assets $assets)
+& gh @releaseArguments
 if ($LASTEXITCODE -ne 0) { throw 'Release publication failed; preserve the original candidate and tag for manual recovery.' }
