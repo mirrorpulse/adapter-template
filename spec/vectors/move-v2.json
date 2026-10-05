@@ -1,0 +1,1 @@
+{"operationId":"00112233-4455-6677-8899-aabbccddeeff","rootKey":"photos","path":"same.jpg","destinationRootKey":"archive","destinationPath":"same.jpg","preconditions":{"expectedRevision":"revision-1","destinationMustBeAbsent":true},"isDirectory":false}
