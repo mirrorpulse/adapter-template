@@ -3,10 +3,10 @@ param([Parameter(Mandatory)][string]$AssetDirectory,
       [Parameter(Mandatory)][ValidatePattern('^[0-9a-f]{40}$')][string]$SourceSha,
       [switch]$ExecuteRunner)
 $ErrorActionPreference = 'Stop'
-. (Join-Path $PSScriptRoot 'release-policy.ps1')
+. (Join-Path $PSScriptRoot 'sdk-version-policy.ps1')
 $root = [IO.Path]::GetFullPath($AssetDirectory)
 $manifest = Get-Content -LiteralPath (Join-Path $root 'sdk-release.json') -Raw | ConvertFrom-Json
-$version = Get-AdapterReleaseVersion $manifest.version
+$version = Get-SdkReleaseVersion $manifest.version
 $names = @("MirrorPulse.Adapter.Sdk.$version.nupkg", "MirrorPulse.Worker.Spec-$version.zip",
     "MirrorPulse.Adapter.Conformance-$version-win-x64.zip", "MirrorPulse.Adapter.Conformance-$version-win-arm64.zip")
 if ($manifest.schemaVersion -ne 1 -or $manifest.repository -cne 'MirrorPulse/adapter-template' -or

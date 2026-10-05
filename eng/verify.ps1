@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param()
 $ErrorActionPreference = "Stop"
+& (Join-Path $PSScriptRoot 'verify-sdk-version.ps1')
 $projects = @("src/MirrorPulse.Adapter.Sdk/MirrorPulse.Adapter.Sdk.csproj", "samples/MirrorPulse.Adapter.SampleWorker/MirrorPulse.Adapter.SampleWorker.csproj", "tools/MirrorPulse.Adapter.Conformance/MirrorPulse.Adapter.Conformance.csproj", "tests/MirrorPulse.Adapter.ContractTests/MirrorPulse.Adapter.ContractTests.csproj")
 foreach ($project in $projects) {
     & dotnet restore $project --locked-mode
