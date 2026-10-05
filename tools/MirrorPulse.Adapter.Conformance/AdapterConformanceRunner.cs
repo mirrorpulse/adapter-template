@@ -114,7 +114,11 @@ public static class AdapterConformanceRunner
             Check(firstRange.AsSpan().SequenceEqual(content.AsSpan(0, 32)), "Cross-root move bytes");
             AdapterControlFrame created = await wire.RequestAsync("CreateDirectory", "left", new AdapterCreateDirectoryRequest(Guid.NewGuid(), "left", "empty"), cancellationToken).ConfigureAwait(false);
             Check(created.MessageType == "MutationComplete", "Create directory");
-            AdapterControlFrame deleted = await wire.RequestAsync("Delete", "right", new AdapterOperationRequest(Guid.NewGuid(), "right", "moved.bin", Preconditions: new(revision)), cancellationToken).ConfigureAwait(false);
+            AdapterControlFrame defaultDirectory = await wire.RequestAsync("CreateDirectory", "left",
+                new { operationId = Guid.NewGuid(), rootKey = "left", path = "default-policy" }, cancellationToken).ConfigureAwait(false);
+            Check(defaultDirectory.MessageType == "MutationComplete", "Default directory condition");
+            AdapterControlFrame deleted = await wire.RequestAsync("Delete", "right", new
+            { operationId = Guid.NewGuid(), rootKey = "right", path = "moved.bin", preconditions = new { expectedRevision = revision } }, cancellationToken).ConfigureAwait(false);
             Check(deleted.MessageType == "MutationComplete", "Delete");
             Check(await wire.StatAsync("right", "moved.bin", cancellationToken).ConfigureAwait(false) is null, "Deleted file absent");
             Check(!Directory.EnumerateFiles(transferCache).Any(), "Successful upload lease removed");

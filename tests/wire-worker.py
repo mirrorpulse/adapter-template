@@ -84,7 +84,7 @@ def main():
                         raise ValueError('StreamLengthMismatch')
                     files[(root, upload['path'])] = bytes(upload['bytes'])
                     result = dict(rootKey=root, operationId=upload['operation'], revision=revision(root, upload['path']))
-                    accepted[upload['operation']] = result
+                    accepted[upload['operation']] = (('Upload', root, upload['path'], upload['length'], result['revision']), result)
                     os.unlink(upload['lease'])
                     send('UploadComplete', ids[0], result)
                     del uploads[ids[0]]

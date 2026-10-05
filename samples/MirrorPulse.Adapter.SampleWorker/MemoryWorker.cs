@@ -220,7 +220,7 @@ internal sealed class MemoryWorker : IAsyncDisposable
             CheckParent(address);
             if (_files.Count + _directories.Count >= 4096) throw new InvalidDataException("ItemLimit");
             if (Revision(address.RootKey, address.Path) is not null &&
-                (command.Payload.GetProperty("mustBeAbsent").GetBoolean() || !_directories.Contains((address.RootKey, address.Path))))
+                ((!command.Payload.TryGetProperty("mustBeAbsent", out JsonElement absent) || absent.GetBoolean()) || !_directories.Contains((address.RootKey, address.Path))))
                 throw new InvalidDataException("DestinationExists");
             _directories.Add((address.RootKey, address.Path));
             revision = "directory";
@@ -276,10 +276,10 @@ internal sealed class MemoryWorker : IAsyncDisposable
 
     private void CheckSource(AdapterControlFrame command, AdapterFileAddress address, bool creating)
     {
-        JsonElement conditions = command.Payload.GetProperty("preconditions");
-        string? expected = conditions.TryGetProperty("expectedRevision", out JsonElement value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+        AdapterMutationPreconditions conditions = Preconditions(command);
+        string? expected = conditions.ExpectedRevision;
         string? actual = Revision(address.RootKey, address.Path);
-        if (actual != expected || (creating && conditions.GetProperty("destinationMustBeAbsent").GetBoolean() && actual is not null))
+        if (actual != expected || (creating && conditions.DestinationMustBeAbsent && actual is not null))
             throw new InvalidDataException("RemoteConflict");
     }
 
@@ -302,8 +302,7 @@ internal sealed class MemoryWorker : IAsyncDisposable
         // Bind semantic inputs, independent of JSON order, transport IDs and
         // unknown optional fields. Content is checked separately on upload replay.
         JsonElement payload = command.Payload;
-        AdapterMutationPreconditions? conditions = command.MessageType == "CreateDirectory" ? null :
-            AdapterProtocolJson.Decode<AdapterMutationPreconditions>(Encoding.UTF8.GetBytes(payload.GetProperty("preconditions").GetRawText()));
+        AdapterMutationPreconditions? conditions = command.MessageType == "CreateDirectory" ? null : Preconditions(command);
         return Convert.ToHexString(SHA256.HashData(AdapterProtocolJson.Encode(new
         {
             command.MessageType,
@@ -317,6 +316,9 @@ internal sealed class MemoryWorker : IAsyncDisposable
             mustBeAbsent = command.MessageType != "CreateDirectory" || !payload.TryGetProperty("mustBeAbsent", out JsonElement absent) || absent.GetBoolean(),
         })));
     }
+
+    private static AdapterMutationPreconditions Preconditions(AdapterControlFrame command) =>
+        AdapterProtocolJson.Decode<AdapterMutationPreconditions>(Encoding.UTF8.GetBytes(command.Payload.GetProperty("preconditions").GetRawText()));
 
     private bool TryReplay(Guid operation, string fingerprint, out AcceptedOperation? accepted)
     {
