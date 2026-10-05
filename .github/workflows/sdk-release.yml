@@ -1,12 +1,27 @@
 name: SDK Release
 
 on:
+  pull_request_target:
+    types: [closed]
   workflow_dispatch:
     inputs:
       publish:
-        description: Publish the fixed SDK version after both native conformance gates
+        description: Publish through the trusted release environment
         type: boolean
         default: false
+      channel:
+        description: Preview from develop; new stable versions require a merged main PR
+        type: choice
+        options: [Preview, Stable]
+        default: Preview
+      existing_version:
+        description: Optional published GitHub SDK version to mirror to NuGet without rebuilding
+        type: string
+        default: ''
+      confirm:
+        description: Type PUBLISH for an actual publication
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -16,31 +31,82 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  resolve:
+    if: github.event_name == 'workflow_dispatch' || (github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: windows-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      source_sha: ${{ steps.version.outputs.source_sha }}
+      channel: ${{ steps.version.outputs.channel }}
+      existing: ${{ steps.version.outputs.existing }}
+      publish: ${{ steps.version.outputs.publish }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+          persist-credentials: false
+      - name: Resolve the CfSharp release channel and version
+        id: version
+        shell: pwsh
+        env:
+          MP_SDK_EVENT: ${{ github.event_name }}
+          MP_SDK_PUBLISH: ${{ inputs.publish }}
+          MP_SDK_CHANNEL: ${{ inputs.channel }}
+          MP_SDK_EXISTING_VERSION: ${{ inputs.existing_version }}
+          MP_SDK_CONFIRM: ${{ inputs.confirm }}
+          MP_SDK_MERGED: ${{ github.event.pull_request.merged }}
+          MP_SDK_BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
+          MP_SDK_HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+          MP_SDK_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          MP_SDK_MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          MP_SDK_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: ./eng/resolve-sdk-publication.ps1
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: steps.version.outputs.existing == 'true'
+        with:
+          name: sdk-candidate
+          path: artifacts/sdk-release/*
+          if-no-files-found: error
+          retention-days: 365
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: steps.version.outputs.existing != 'true'
+        with:
+          name: sdk-version
+          path: artifacts/sdk-version.json
+          if-no-files-found: error
+          retention-days: 365
+
   build:
-    if: github.ref == 'refs/heads/main'
+    needs: resolve
+    if: needs.resolve.outputs.existing != 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          ref: ${{ needs.resolve.outputs.source_sha }}
           persist-credentials: false
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           global-json-file: global.json
-      - name: Verify repository and build fixed SDK candidates
+      - name: Verify repository and build immutable SDK candidates
         env:
-          MP_SDK_SOURCE_SHA: ${{ github.sha }}
+          MP_SDK_SOURCE_SHA: ${{ needs.resolve.outputs.source_sha }}
+          MP_SDK_VERSION: ${{ needs.resolve.outputs.version }}
         run: |
           ./eng/verify.ps1
-          ./eng/build-sdk-assets.ps1 -SourceSha $env:MP_SDK_SOURCE_SHA
+          ./eng/build-sdk-assets.ps1 -SourceSha $env:MP_SDK_SOURCE_SHA -Version $env:MP_SDK_VERSION
           ./eng/publish-sdk-release.ps1 -AssetDirectory artifacts/sdk-release -DryRun
+          ./eng/publish-sdk-nuget.ps1 -AssetDirectory artifacts/sdk-release -SourceSha $env:MP_SDK_SOURCE_SHA -DryRun
+          ./eng/verify-sdk-publishing.ps1 -AssetDirectory artifacts/sdk-release
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: sdk-candidate
           path: artifacts/sdk-release/*
           if-no-files-found: error
+          retention-days: 365
 
   conformance:
-    needs: build
+    needs: [resolve, build]
     strategy:
       fail-fast: false
       matrix:
@@ -49,6 +115,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          ref: ${{ needs.resolve.outputs.source_sha }}
           persist-credentials: false
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
@@ -59,25 +126,55 @@ jobs:
           path: artifacts/sdk-release
       - name: Verify hashes and execute the published native runner
         env:
-          MP_SDK_SOURCE_SHA: ${{ github.sha }}
+          MP_SDK_SOURCE_SHA: ${{ needs.resolve.outputs.source_sha }}
         run: ./eng/verify-sdk-assets.ps1 -AssetDirectory artifacts/sdk-release -SourceSha $env:MP_SDK_SOURCE_SHA -ExecuteRunner
 
   publish:
-    needs: conformance
-    if: inputs.publish
+    needs: [resolve, build, conformance]
+    if: always() && needs.resolve.result == 'success' && needs.resolve.outputs.publish == 'true' && (needs.resolve.outputs.existing == 'true' || needs.conformance.result == 'success')
     runs-on: windows-latest
-    environment: sdk-release
+    environment: ${{ needs.resolve.outputs.channel }}
     permissions:
       contents: write
+      id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
           persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: sdk-candidate
           path: artifacts/sdk-release
-      - name: Publish without replacing an existing version
+      - name: Verify the original package before requesting a credential
+        env:
+          MP_SDK_SOURCE_SHA: ${{ needs.resolve.outputs.source_sha }}
+          NUGET_USER: ${{ secrets.NUGET_USER }}
+        run: |
+          ./eng/publish-sdk-nuget.ps1 -AssetDirectory artifacts/sdk-release -SourceSha $env:MP_SDK_SOURCE_SHA -DryRun
+          if ([string]::IsNullOrWhiteSpace($env:NUGET_USER)) { throw 'NUGET_USER must contain the nuget.org profile name.' }
+      - name: Exchange GitHub OIDC for a temporary NuGet key
+        id: nuget-login
+        uses: NuGet/login@ebc737b6fc418a6ca0073cf116ec8dc156d8b81e # v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
+      - name: Publish the same original package to NuGet
+        env:
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+          MP_SDK_SOURCE_SHA: ${{ needs.resolve.outputs.source_sha }}
+        run: ./eng/publish-sdk-nuget.ps1 -AssetDirectory artifacts/sdk-release -SourceSha $env:MP_SDK_SOURCE_SHA
+      - name: Create the matching immutable GitHub Release
+        if: needs.resolve.outputs.existing != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: ./eng/publish-sdk-release.ps1 -AssetDirectory artifacts/sdk-release
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: sdk-publication-evidence
+          path: artifacts/sdk-nuget-evidence.json
+          if-no-files-found: warn
+          retention-days: 365

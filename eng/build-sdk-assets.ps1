@@ -1,10 +1,9 @@
 [CmdletBinding()]
 param([Parameter(Mandatory)][ValidatePattern('^[0-9a-f]{40}$')][string]$SourceSha,
-      [string]$OutputDirectory = 'artifacts/sdk-release', [string]$Version)
+      [string]$OutputDirectory = 'artifacts/sdk-release', [Parameter(Mandatory)][string]$Version)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'sdk-version-policy.ps1')
-[xml]$project = Get-Content -LiteralPath (Join-Path $PSScriptRoot '../src/MirrorPulse.Adapter.Sdk/MirrorPulse.Adapter.Sdk.csproj') -Raw
-$version = Get-SdkReleaseVersion $(if ($Version) { $Version } else { [string]$project.Project.PropertyGroup.Version })
+$version = Get-SdkReleaseVersion $Version
 $actualSource = & git rev-parse HEAD
 $changes = @(& git status --porcelain)
 if ($LASTEXITCODE -ne 0 -or $actualSource -cne $SourceSha -or $changes.Count -ne 0) { throw 'SDK assets require an exact clean source commit.' }

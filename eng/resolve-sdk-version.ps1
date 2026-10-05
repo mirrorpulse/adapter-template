@@ -19,7 +19,8 @@ if ($VersionsFile) {
     }
     $github=@()
     for ($page=1; $page -le 20; $page++) {
-        $releases=@(Invoke-RestMethod -Uri "https://api.github.com/repos/MirrorPulse/adapter-template/releases?per_page=100&page=$page")
+        $response=Invoke-RestMethod -Uri "https://api.github.com/repos/MirrorPulse/adapter-template/releases?per_page=100&page=$page"
+        $releases=@($response)
         foreach ($release in $releases) {
             if (-not $release.draft -and $release.tag_name.StartsWith('sdk-v', [StringComparison]::Ordinal)) {
                 $github += $release.tag_name.Substring(5)
