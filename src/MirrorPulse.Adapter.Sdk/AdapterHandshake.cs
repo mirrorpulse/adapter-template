@@ -60,7 +60,7 @@ public static class AdapterHandshake
         AdapterNegotiation result = Negotiate(offer, ready.Roots?.Count ?? 0,
             new(ready.SelectedVersion, ready.SelectedVersion));
         if (!result.Accepted) throw new InvalidDataException(result.ErrorCode);
-        if (ready.SelectedVersion == 2 && (ready.Roots is null || ready.Roots.Count == 0 ||
+        if (ready.SelectedVersion == 2 && (ready.Roots is null || ready.Roots.Count == 0 || ready.Capabilities is null ||
             RequiredV2Capabilities.Any(c => !ready.Capabilities.Contains(c, StringComparer.Ordinal))))
             throw new InvalidDataException("InvalidReady");
         var keys = new HashSet<string>(StringComparer.Ordinal);

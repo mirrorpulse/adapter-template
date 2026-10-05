@@ -25,7 +25,7 @@ Host database, configuration, signing key or user data.
 
 Adapters communicate with MirrorPulse over the current-user Named Pipe contract and receive configuration, credentials references, source-directory grants, and cache paths from MirrorPulse at runtime.
 
-The template does not implement a storage protocol. Provider repositories should add their own protocol code and publish a signed `.mpadapter` release.
+The executable sample implements a bounded, ephemeral memory source. Each enabled root starts with `readme.txt`; its bytes identify that root. All source content and retry receipts disappear when the process exits. Provider repositories replace this demonstration source with their storage implementation.
 
 ## Release reference
 
@@ -46,5 +46,9 @@ Run `pwsh ./eng/verify-release.ps1` for hostile version rejection and a dual-RID
 package signed with an in-memory disposable key. It never reads a private key
 file or publishes a Release. The packaging verifier checks the embedded signature
 and inventory against the exported public key; product installation independently
-checks publisher trust. This example retains the current framework-dependent v1
-Worker. Self-contained runtime/SDK evolution belongs to the next contract stage.
+checks publisher trust. The example uses v2 exclusively because it declares multiple roots. The SDK
+retains v1 for explicitly negotiated single-root Workers. Transfer files are
+temporary leases under the Host-provided cache; there is no persistent settings
+directory. The sample limits files to 2 MiB, source content to 8 MiB, nodes to
+4096, roots to 64, concurrent uploads to four and in-session retry receipts to
+256. Directory moves are explicitly unsupported.

@@ -5,6 +5,8 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../../samples/MirrorPulse.Adapter.SampleWorker/MirrorPulse.Adapter.SampleWorker.csproj" />
+    <ProjectReference Include="../../tools/MirrorPulse.Adapter.Conformance/MirrorPulse.Adapter.Conformance.csproj" />
     <ProjectReference Include="../../src/MirrorPulse.Adapter.Sdk/MirrorPulse.Adapter.Sdk.csproj" />
     <None Include="../../spec/vectors/*.json" Link="vectors/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

@@ -11,7 +11,7 @@ public sealed record AdapterFileAddress(string RootKey, string Path)
         if (string.IsNullOrWhiteSpace(RootKey) || RootKey.Length > 256 || RootKey.Any(char.IsControl))
             throw new InvalidDataException("InvalidRoot");
         if (Path is null || Path.Length > 32768 || Path.Contains('\\') || Path.Contains(':') ||
-            Path.StartsWith('/') || Path.Split('/').Any(p => p is "." or "..") ||
+            Path.StartsWith('/') || (Path.Length > 0 && Path.Split('/').Any(p => p is "." or ".." or "")) ||
             Path.Any(char.IsControl))
             throw new InvalidDataException("InvalidPath");
     }
@@ -45,6 +45,7 @@ public static class AdapterProtocolJson
     };
 
     public static byte[] Encode<T>(T value) => JsonSerializer.SerializeToUtf8Bytes(value, Options);
+    public static JsonElement ToElement<T>(T value) => JsonSerializer.SerializeToElement(value, Options);
 
     public static T Decode<T>(ReadOnlySpan<byte> bytes) => JsonSerializer.Deserialize<T>(bytes, Options)
         ?? throw new InvalidDataException("NullPayload");

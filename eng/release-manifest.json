@@ -4,8 +4,8 @@
   "publisher": "Example Publisher",
   "version": "0.1.0",
   "protocol": {
-    "minimum": 1,
-    "maximum": 1
+    "minimum": 2,
+    "maximum": 2
   },
   "entrypoints": {
     "win-x64": "worker/win-x64/MirrorPulse.Adapter.Worker.exe",
@@ -20,17 +20,23 @@
   },
   "rootDefinitions": [
     {
-      "key": "documents",
-      "label": "Documents",
-      "directoryName": "Documents",
+      "label": "Memory left",
+      "key": "left",
+      "directoryName": "Memory left",
+      "customEntry": false
+    },
+    {
+      "label": "Memory right",
+      "key": "right",
+      "directoryName": "Memory right",
       "customEntry": false
     }
   ],
   "capabilities": {
-    "network": true,
-    "sourceDirectory": true,
-    "remoteChanges": true,
-    "rangeRead": false
+    "network": false,
+    "sourceDirectory": false,
+    "remoteChanges": false,
+    "rangeRead": true
   },
   "locales": [
     "en-US"

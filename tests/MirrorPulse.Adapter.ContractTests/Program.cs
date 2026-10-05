@@ -52,6 +52,15 @@ try
 }
 finally { Directory.Delete(cache); }
 Console.WriteLine("Contract, handshake and binary boundary checks passed.");
+string processCache = Path.Combine(Path.GetTempPath(), "MirrorPulse-conformance", Guid.NewGuid().ToString("N"));
+try
+{
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+    string executable = Path.ChangeExtension(typeof(MirrorPulse.Adapter.SampleWorker.SampleWorkerMarker).Assembly.Location, ".exe");
+    await MirrorPulse.Adapter.Conformance.AdapterConformanceRunner.RunAsync(executable, processCache, timeout.Token);
+    Console.WriteLine("Actual memory Worker process conformance passed.");
+}
+finally { if (Directory.Exists(processCache)) Directory.Delete(processCache, recursive: true); }
 
 static void Check(bool condition, string name)
 {

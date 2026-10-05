@@ -12,6 +12,8 @@ public sealed record AdapterControlFrame(
     bool IsResponse,
     JsonElement Payload);
 
+public sealed record AdapterWorkerFrame(AdapterControlFrame? Control, AdapterBinaryChunk? Chunk);
+
 public sealed class AdapterControlChannel : IAsyncDisposable
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.General)
@@ -72,6 +74,11 @@ public sealed class AdapterControlChannel : IAsyncDisposable
     public async ValueTask<AdapterControlFrame> ReadAsync(CancellationToken cancellationToken = default)
     {
         byte[] bytes = await _pipe.ReadFrameAsync(cancellationToken).ConfigureAwait(false);
+        return DecodeControl(bytes);
+    }
+
+    private AdapterControlFrame DecodeControl(byte[] bytes)
+    {
         AdapterControlFrame frame = JsonSerializer.Deserialize<AdapterControlFrame>(bytes, JsonOptions)
             ?? throw new InvalidDataException("The Host sent a null control frame.");
         bool selectingV2 = _protocolVersion == 1 && frame.ProtocolVersion == 2 &&
@@ -84,6 +91,21 @@ public sealed class AdapterControlChannel : IAsyncDisposable
         }
 
         return frame;
+    }
+
+    /// <summary>The session has one reader; v2 permits Cancel between upload chunks.</summary>
+    public async ValueTask<AdapterWorkerFrame> ReadNextAsync(CancellationToken cancellationToken = default)
+    {
+        if (_protocolVersion != 2) throw new InvalidOperationException("Multiplexed frames require protocol v2.");
+        byte[] bytes = await _pipe.ReadFrameAsync(cancellationToken).ConfigureAwait(false);
+        if (bytes.AsSpan().StartsWith("MPB2"u8))
+        {
+            AdapterBinaryChunk chunk = AdapterBinaryChunkV2Codec.Decode(bytes);
+            if (chunk.InstanceId != _instanceId || chunk.WorkerSessionId != _workerSessionId)
+                throw new InvalidDataException("The binary chunk belongs to another Worker session.");
+            return new(null, chunk);
+        }
+        return new(DecodeControl(bytes), null);
     }
 
     public ValueTask DisposeAsync() => _pipe.DisposeAsync();
