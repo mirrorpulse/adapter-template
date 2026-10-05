@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: MirrorPulse/MirrorPulse
-          ref: a99e5fa3450be698af00dc227719cf4d6c6ca907
+          ref: 44cc42f0ae90a0f9f4822595cd0a07320e456ff0
           persist-credentials: false
           path: product
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6

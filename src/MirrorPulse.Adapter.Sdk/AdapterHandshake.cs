@@ -34,12 +34,13 @@ public static class AdapterHandshake
             offer.SupportedVersions.Maximum < offer.SupportedVersions.Minimum ||
             hostVersions.Minimum < 1 || hostVersions.Maximum < hostVersions.Minimum)
             return new(null, "InvalidVersionOffer");
-        int selected = Math.Min(offer.SupportedVersions.Maximum, hostVersions.Maximum);
+        int selected = Math.Min(2, Math.Min(offer.SupportedVersions.Maximum, hostVersions.Maximum));
         if (selected < Math.Max(offer.SupportedVersions.Minimum, hostVersions.Minimum))
             return new(null, "ProtocolVersionUnsupported");
         if (selected == 2 && (offer.Capabilities is null ||
             RequiredV2Capabilities.Any(c => !offer.Capabilities.Contains(c, StringComparer.Ordinal))))
             return new(null, "RequiredCapabilityMissing");
+        if (selected == 2 && configuredRootCount == 0) return new(null, "InvalidRoots");
         if (selected == 1 && configuredRootCount > 1)
             return new(null, "MultipleRootsRequireProtocolV2");
         return new(selected, null);

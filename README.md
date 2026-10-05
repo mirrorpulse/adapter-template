@@ -60,3 +60,10 @@ installs it through a pinned MirrorPulse production catalog. The production
 Supervisor then exercises both roots and mutations in the installed Worker.
 Run `pwsh ./eng/verify-generated-template.ps1 -ProductRepositoryPath C:/Path/To/MirrorPulse`
 to reproduce this gate. No Cloud Files registration is needed for this check.
+
+## Worker protocol and SDK releases
+
+The language-neutral contract is in [spec/worker-v2.md](spec/worker-v2.md), with
+JSON and binary golden vectors. `eng/verify-wire-conformance.ps1` exercises a
+test-only Python process that imports no SDK and detects wrong-root, missing
+capability and broken-cancellation variants. Python 3 is required for this gate.

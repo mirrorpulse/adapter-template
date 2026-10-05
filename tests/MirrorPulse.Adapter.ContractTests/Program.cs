@@ -7,6 +7,13 @@ AdapterProtocolJson.ValidateMutation(request, requiresDestination: true);
 Check(request.RootKey == "photos" && request.DestinationRootKey == "archive", "Cross-root golden addresses");
 Check(System.Text.Encoding.UTF8.GetString(AdapterProtocolJson.Encode(request)) == vector, "Golden encoding");
 using JsonDocument v1 = JsonDocument.Parse("{\"path\":\"a.txt\",\"futureField\":true}");
+using JsonDocument binaryVector = JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "vectors", "binary-v2.json")));
+JsonElement golden = binaryVector.RootElement;
+var goldenChunk = new AdapterBinaryChunk(golden.GetProperty("requestId").GetGuid(), golden.GetProperty("instanceId").GetGuid(),
+    golden.GetProperty("workerSessionId").GetGuid(), golden.GetProperty("streamId").GetGuid(), golden.GetProperty("offset").GetInt64(),
+    Convert.FromHexString(golden.GetProperty("dataHex").GetString()!), golden.GetProperty("endOfStream").GetBoolean())
+{ RootKey = golden.GetProperty("rootKey").GetString() };
+Check(Convert.ToHexString(AdapterBinaryChunkV2Codec.Encode(goldenChunk)) == golden.GetProperty("payloadHex").GetString(), "Binary golden encoding");
 Check(AdapterProtocolJson.ReadAddress(v1.RootElement, 1, "documents").RootKey == "documents", "Explicit v1 root binding");
 Reject(() => AdapterProtocolJson.ReadAddress(v1.RootElement, 1), "Unbound v1");
 Reject(() => AdapterProtocolJson.ReadAddress(v1.RootElement, 2), "Missing v2 root");
@@ -22,6 +29,8 @@ Check(AdapterHandshake.Negotiate(new(new(1, 1), []), 1).SelectedVersion == 1, "N
 Check(AdapterHandshake.Negotiate(new(new(1, 1), []), 2).ErrorCode == "MultipleRootsRequireProtocolV2", "No silent multi-root downgrade");
 Check(AdapterHandshake.Negotiate(modern with { Capabilities = [] }, 2).ErrorCode == "RequiredCapabilityMissing", "Missing capabilities");
 Check(AdapterHandshake.Negotiate(modern with { SupportedVersions = new(3, 3) }, 1).ErrorCode == "ProtocolVersionUnsupported", "Unsupported version");
+Check(AdapterHandshake.Negotiate(modern with { SupportedVersions = new(3, 3) }, 1, new(3, 3)).ErrorCode == "ProtocolVersionUnsupported", "SDK never selects an unimplemented wire version");
+Check(AdapterHandshake.Negotiate(modern, 0).ErrorCode == "InvalidRoots", "V2 requires at least one configured root");
 AdapterRootBinding[] roots = [new("photos", true, new Dictionary<string, string>()), new("archive", false, new Dictionary<string, string>())];
 AdapterHandshake.ValidateReady(new(2, AdapterHandshake.V2Capabilities, roots, new Dictionary<string, string>()), modern);
 Reject(() => AdapterHandshake.ValidateReady(new(2, AdapterHandshake.V2Capabilities, [roots[0], roots[0]], new Dictionary<string, string>()), modern), "Duplicate root keys");

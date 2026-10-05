@@ -10,7 +10,8 @@ namespace MirrorPulse.Adapter.Conformance;
 /// <summary>Runs the controlled memory-source profile through real process and pipe boundaries.</summary>
 public static class AdapterConformanceRunner
 {
-    public static async Task RunAsync(string executable, string transferCache, CancellationToken cancellationToken)
+    public static async Task RunAsync(string executable, string transferCache, CancellationToken cancellationToken,
+        IReadOnlyList<string>? workerArguments = null)
     {
         string pipeName = "mp-conformance-" + Guid.NewGuid().ToString("N");
         await using var pipe = new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte,
@@ -24,6 +25,7 @@ public static class AdapterConformanceRunner
             RedirectStandardOutput = true,
             RedirectStandardError = true
         };
+        foreach (string argument in workerArguments ?? []) start.ArgumentList.Add(argument);
         foreach (string argument in new[] { "--instance-id", instance.ToString("D"), "--worker-session-id", session.ToString("D"), "--pipe-name", pipeName })
             start.ArgumentList.Add(argument);
         start.Environment["MP_TRANSFER_CACHE_DIR"] = transferCache;

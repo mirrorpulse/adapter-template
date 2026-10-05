@@ -13,3 +13,4 @@ foreach ($project in $projects) {
 & (Join-Path $PSScriptRoot 'verify-sdk-package.ps1')
 & dotnet run --project tests/MirrorPulse.Adapter.ContractTests -c Release --no-build
 if ($LASTEXITCODE -ne 0) { throw 'SDK contract checks failed.' }
+& (Join-Path $PSScriptRoot 'verify-wire-conformance.ps1')
