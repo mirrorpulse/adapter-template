@@ -1,0 +1,83 @@
+name: SDK Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the fixed SDK version after both native conformance gates
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sdk-release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
+      - name: Verify repository and build fixed SDK candidates
+        env:
+          MP_SDK_SOURCE_SHA: ${{ github.sha }}
+        run: |
+          ./eng/verify.ps1
+          ./eng/build-sdk-assets.ps1 -SourceSha $env:MP_SDK_SOURCE_SHA
+          ./eng/publish-sdk-release.ps1 -AssetDirectory artifacts/sdk-release -DryRun
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: sdk-candidate
+          path: artifacts/sdk-release/*
+          if-no-files-found: error
+
+  conformance:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [windows-latest, windows-11-arm]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: sdk-candidate
+          path: artifacts/sdk-release
+      - name: Verify hashes and execute the published native runner
+        env:
+          MP_SDK_SOURCE_SHA: ${{ github.sha }}
+        run: ./eng/verify-sdk-assets.ps1 -AssetDirectory artifacts/sdk-release -SourceSha $env:MP_SDK_SOURCE_SHA -ExecuteRunner
+
+  publish:
+    needs: conformance
+    if: inputs.publish
+    runs-on: windows-latest
+    environment: sdk-release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: sdk-candidate
+          path: artifacts/sdk-release
+      - name: Publish without replacing an existing version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./eng/publish-sdk-release.ps1 -AssetDirectory artifacts/sdk-release

@@ -67,3 +67,14 @@ The language-neutral contract is in [spec/worker-v2.md](spec/worker-v2.md), with
 JSON and binary golden vectors. `eng/verify-wire-conformance.ps1` exercises a
 test-only Python process that imports no SDK and detects wrong-root, missing
 capability and broken-cancellation variants. Python 3 is required for this gate.
+
+`SDK Release` builds the fixed version from the SDK project, tests self-contained
+conformance runners on native x64 and ARM64, and defaults to uploading candidate
+artifacts. Publishing uses the `sdk-release` environment and its actual main-only
+branch rule and owner review. It requires no NuGet publication credential.
+The resulting `sdk-vVERSION` Release contains one `.nupkg`, two native runner
+archives, the specification/vectors archive and `sdk-release.json` with source
+SHA, asset names, lengths and SHA256. Existing tags and assets are never replaced.
+Downstream consumers pin those hashes before adding the package to a local feed.
+The conformance runner covers the controlled memory-source profile; a provider
+repository also needs its own real-storage and crash-recovery tests.
