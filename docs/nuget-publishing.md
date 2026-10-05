@@ -40,7 +40,14 @@ same download and validation perform a dry run without OIDC or publication.
 ## New versions
 
 Merging a classified develop PR into main starts stable preparation and both
-native conformance gates, then waits for the protected stable environment.
+native conformance gates, then waits for the protected stable environment. The
+workflow runs on the protected `main` push and verifies that the exact source
+commit belongs to one merged same-repository develop PR with one release label.
+This preserves the CfSharp review and version model while avoiding
+`pull_request_target`, which nuget.org rejects for trusted publishing. Retrying a
+failed run with that event does not change its OIDC identity; merge the workflow
+correction and approve the new main-push run instead. The workflow file,
+environments and `NUGET_USER` secret name remain the same.
 Previews require an explicit dispatch from develop, `Preview`, `publish=true`
 and `PUBLISH`. Dispatches default to dry runs. SDK publication is separate from
 provider `.mpadapter` signing and application Store submission.
