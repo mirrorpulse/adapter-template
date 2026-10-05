@@ -130,8 +130,16 @@ def main():
                 send('CancelAck', request, dict(rootKey=root, targetRequestId=target, status='canceled'))
             elif kind in ('Move', 'Delete', 'CreateDirectory'):
                 operation = payload['operationId']
+                conditions = payload.get('preconditions', {})
+                binding = (kind, root, path, payload.get('destinationRootKey'), payload.get('destinationPath'),
+                           conditions.get('expectedRevision'), conditions.get('destinationMustBeAbsent', True),
+                           payload.get('isDirectory', False), payload.get('mustBeAbsent', True))
                 if operation in accepted:
-                    send('MutationComplete', request, accepted[operation])
+                    previous_binding, previous_result = accepted[operation]
+                    if previous_binding != binding:
+                        send('OperationError', request, dict(rootKey=root, operationId=operation, code='OperationBindingMismatch'))
+                    else:
+                        send('MutationComplete', request, previous_result)
                     continue
                 if kind == 'Move':
                     files[(payload['destinationRootKey'], payload['destinationPath'])] = files.pop((root, path))
@@ -143,7 +151,7 @@ def main():
                     directories.add((root, path))
                     result_revision = 'directory'
                 result = dict(rootKey=root, operationId=operation, revision=result_revision)
-                accepted[operation] = result
+                accepted[operation] = (binding, result)
                 send('MutationComplete', request, result)
             else:
                 raise ValueError('OperationUnsupported')

@@ -94,6 +94,22 @@ public static class AdapterConformanceRunner
             Check(moved.MessageType == "MutationComplete" && moved.Payload.GetProperty("operationId").GetGuid() == moveOperation, "Move operation binding");
             AdapterControlFrame retried = await wire.RequestAsync("Move", "left", move, cancellationToken).ConfigureAwait(false);
             Check(retried.MessageType == "MutationComplete" && retried.Payload.GetProperty("revision").GetString() == revision, "Stable mutation retry");
+            AdapterControlFrame equivalent = await wire.RequestAsync("Move", "left", new
+            {
+                preconditions = new { destinationMustBeAbsent = true, expectedRevision = revision },
+                futureOptionalField = "ignored",
+                path = "uploaded.bin",
+                rootKey = "left",
+                operationId = moveOperation,
+                destinationPath = "moved.bin",
+                destinationRootKey = "right",
+            }, cancellationToken).ConfigureAwait(false);
+            Check(equivalent.MessageType == "MutationComplete" && equivalent.Payload.GetProperty("revision").GetString() == revision,
+                "Semantic retry ignores JSON property order and optional fields");
+            AdapterControlFrame rebound = await wire.RequestAsync("Move", "left", move with { DestinationPath = "rebound.bin" }, cancellationToken).ConfigureAwait(false);
+            Check(rebound.MessageType == "OperationError" && rebound.Payload.GetProperty("code").GetString() == "OperationBindingMismatch",
+                "Accepted operation cannot be rebound");
+            Check(await wire.StatAsync("right", "rebound.bin", cancellationToken).ConfigureAwait(false) is null, "Rebound mutation did not execute");
             byte[] firstRange = await wire.ReadRangeAsync("right", "moved.bin", 32, cancellationToken).ConfigureAwait(false);
             Check(firstRange.AsSpan().SequenceEqual(content.AsSpan(0, 32)), "Cross-root move bytes");
             AdapterControlFrame created = await wire.RequestAsync("CreateDirectory", "left", new AdapterCreateDirectoryRequest(Guid.NewGuid(), "left", "empty"), cancellationToken).ConfigureAwait(false);

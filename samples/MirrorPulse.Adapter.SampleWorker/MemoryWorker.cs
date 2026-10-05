@@ -227,6 +227,8 @@ internal sealed class MemoryWorker : IAsyncDisposable
         }
         else
         {
+            bool directory = command.Payload.TryGetProperty("isDirectory", out JsonElement kind) && kind.GetBoolean();
+            if (directory != _directories.Contains((address.RootKey, address.Path))) throw new InvalidDataException("ItemKindMismatch");
             CheckSource(command, address, creating: false);
             if (command.MessageType == "Delete")
             {
@@ -297,9 +299,23 @@ internal sealed class MemoryWorker : IAsyncDisposable
 
     private static string Fingerprint(AdapterControlFrame command, AdapterFileAddress address)
     {
-        var fields = command.Payload.EnumerateObject().Where(property => property.Name is not ("streamId" or "operationId"))
-            .OrderBy(property => property.Name, StringComparer.Ordinal).ToDictionary(property => property.Name, property => property.Value.Clone(), StringComparer.Ordinal);
-        return Convert.ToHexString(SHA256.HashData(AdapterProtocolJson.Encode(new { command.MessageType, address.RootKey, fields })));
+        // Bind semantic inputs, independent of JSON order, transport IDs and
+        // unknown optional fields. Content is checked separately on upload replay.
+        JsonElement payload = command.Payload;
+        AdapterMutationPreconditions? conditions = command.MessageType == "CreateDirectory" ? null :
+            AdapterProtocolJson.Decode<AdapterMutationPreconditions>(Encoding.UTF8.GetBytes(payload.GetProperty("preconditions").GetRawText()));
+        return Convert.ToHexString(SHA256.HashData(AdapterProtocolJson.Encode(new
+        {
+            command.MessageType,
+            address.RootKey,
+            address.Path,
+            preconditions = conditions,
+            destinationRootKey = command.MessageType == "Move" ? payload.GetProperty("destinationRootKey").GetString() : null,
+            destinationPath = command.MessageType == "Move" ? payload.GetProperty("destinationPath").GetString() : null,
+            length = command.MessageType == "Upload" ? (long?)payload.GetProperty("length").GetInt64() : null,
+            isDirectory = payload.TryGetProperty("isDirectory", out JsonElement kind) && kind.GetBoolean(),
+            mustBeAbsent = command.MessageType != "CreateDirectory" || !payload.TryGetProperty("mustBeAbsent", out JsonElement absent) || absent.GetBoolean(),
+        })));
     }
 
     private bool TryReplay(Guid operation, string fingerprint, out AcceptedOperation? accepted)

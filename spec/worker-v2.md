@@ -106,6 +106,10 @@ root. Incomplete pages require a next cursor. Providers must document limits and
 snapshot guarantees. The memory example's index cursor does not pin a generation
 across concurrent modifications; it is not a production remote-change feed.
 
+Replay binding compares semantic inputs. JSON property order, fresh transport IDs
+and ignored optional fields must not change that binding. Changing an accepted
+operation's roots, destination, conditions or other effective input is rejected.
+
 In v2, legacy optional aliases (`sourcePath`, top-level `expectedRevision`) may
 be sent for compatibility, but `path`, `destinationRootKey` and `preconditions`
 are authoritative. Unsupported directory moves or replacement policies must
