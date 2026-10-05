@@ -1,8 +1,8 @@
 name: SDK Release
 
 on:
-  pull_request_target:
-    types: [closed]
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       publish:
@@ -32,8 +32,10 @@ concurrency:
 
 jobs:
   resolve:
-    if: github.event_name == 'workflow_dispatch' || (github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: windows-latest
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       version: ${{ steps.version.outputs.version }}
       source_sha: ${{ steps.version.outputs.source_sha }}
@@ -43,7 +45,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
       - name: Resolve the CfSharp release channel and version
         id: version
@@ -54,12 +56,7 @@ jobs:
           MP_SDK_CHANNEL: ${{ inputs.channel }}
           MP_SDK_EXISTING_VERSION: ${{ inputs.existing_version }}
           MP_SDK_CONFIRM: ${{ inputs.confirm }}
-          MP_SDK_MERGED: ${{ github.event.pull_request.merged }}
-          MP_SDK_BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
-          MP_SDK_HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
-          MP_SDK_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
-          MP_SDK_MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
-          MP_SDK_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: ./eng/resolve-sdk-publication.ps1
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: steps.version.outputs.existing == 'true'
@@ -140,7 +137,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:

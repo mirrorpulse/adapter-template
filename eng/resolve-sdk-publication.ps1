@@ -1,18 +1,28 @@
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'sdk-version-policy.ps1')
+. (Join-Path $PSScriptRoot 'sdk-release-source.ps1')
 $existing=[string]$env:MP_SDK_EXISTING_VERSION
 $publish=$env:MP_SDK_PUBLISH -ceq 'true'
 $channel=[string]$env:MP_SDK_CHANNEL
 $bump='Fix'
 $source=& git rev-parse HEAD
 if($LASTEXITCODE -ne 0){throw 'Cannot identify the checked-out SDK source.'}
-if($env:MP_SDK_EVENT -ceq 'pull_request_target'){
-    if($env:MP_SDK_MERGED -cne 'true' -or $env:MP_SDK_BASE_BRANCH -cne 'main' -or
-        $env:MP_SDK_HEAD_BRANCH -cne 'develop' -or $env:MP_SDK_HEAD_REPOSITORY -cne $env:GITHUB_REPOSITORY -or
-        $source -cne $env:MP_SDK_MERGE_SHA){throw 'Stable publication requires the merged develop pull request source.'}
-    $labels=@($env:MP_SDK_LABELS -split ',' | Where-Object {$_ -cin @('breaking','feature','fix')})
-    if($labels.Count -ne 1){throw 'Stable publication requires exactly one release classification.'}
-    $bump=$labels[0]
+if($env:MP_SDK_EVENT -ceq 'push'){
+    if($env:GITHUB_REF -cne 'refs/heads/main' -or $source -cne $env:GITHUB_SHA -or
+        $source -cnotmatch '\A[0-9a-f]{40}\z' -or
+        $env:GITHUB_REPOSITORY -cnotmatch '\A[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\z'){
+        throw 'Stable SDK publication requires the exact pushed main source.'
+    }
+    if([string]::IsNullOrWhiteSpace($env:GITHUB_TOKEN)){throw 'Stable SDK source validation requires a read-only GitHub token.'}
+    $headers=@{Authorization="Bearer $env:GITHUB_TOKEN";Accept='application/vnd.github+json';'X-GitHub-Api-Version'='2022-11-28'}
+    try{
+        $response=Invoke-RestMethod -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/commits/$source/pulls?per_page=100" -Headers $headers
+    }catch{throw 'Unable to verify the merged SDK pull request for this main commit.'}
+    $pullRequests=@($response | ForEach-Object {$_})
+    if($pullRequests.Count -ge 100){throw 'SDK commit PR history exceeds the bounded query; review before publishing.'}
+    $classification=Get-SdkStableClassification -Repository $env:GITHUB_REPOSITORY -SourceSha $source -PullRequests $pullRequests
+    $bump=$classification.bump
+    Write-Host "Validated merged develop PR #$($classification.pullRequest) for SDK source $source."
     $channel='Stable';$publish=$true;$existing=''
 }elseif($env:MP_SDK_EVENT -ceq 'workflow_dispatch'){
     if($channel -cnotin @('Stable','Preview')){throw 'Invalid SDK publication channel.'}
