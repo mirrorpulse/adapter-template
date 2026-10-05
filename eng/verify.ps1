@@ -7,6 +7,8 @@ foreach ($project in $projects) {
     if ($LASTEXITCODE -ne 0) { throw "Restore failed for $project." }
     & dotnet build $project --configuration Release --no-restore
     if ($LASTEXITCODE -ne 0) { throw "Build failed for $project." }
+    & dotnet format $project --no-restore --verify-no-changes
+    if ($LASTEXITCODE -ne 0) { throw "Formatting failed for $project." }
 }
 & (Join-Path $PSScriptRoot 'verify-sdk-package.ps1')
 & dotnet run --project tests/MirrorPulse.Adapter.ContractTests -c Release --no-build

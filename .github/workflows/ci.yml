@@ -10,15 +10,37 @@ permissions:
 
 jobs:
   build:
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [windows-latest, windows-11-arm]
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+          path: template
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: MirrorPulse/MirrorPulse
+          ref: a99e5fa3450be698af00dc227719cf4d6c6ca907
+          persist-credentials: false
+          path: product
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          global-json-file: global.json
+          global-json-file: template/global.json
       - name: Verify Adapter build
+        working-directory: template
         run: pwsh ./eng/verify.ps1
       - name: Verify hostile release inputs and dual-RID packaging without production keys
+        working-directory: template
         run: pwsh -NoProfile -File eng/verify-release.ps1
+      - name: Generate a fresh repository and verify signed installation in the pinned product
+        working-directory: template
+        run: pwsh -NoProfile -File eng/verify-generated-template.ps1 -ProductRepositoryPath ../product
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: template-conformance-${{ matrix.runner }}
+          path: template/artifacts/generated/**/artifacts/product-conformance/*.trx
+          if-no-files-found: error

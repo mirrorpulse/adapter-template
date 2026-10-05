@@ -52,3 +52,11 @@ temporary leases under the Host-provided cache; there is no persistent settings
 directory. The sample limits files to 2 MiB, source content to 8 MiB, nodes to
 4096, roots to 64, concurrent uploads to four and in-session retry receipts to
 256. Directory moves are explicitly unsupported.
+
+CI runs on native x64 and ARM64 Windows runners. It copies only tracked source
+into a fresh Git repository, restores locked dependencies, builds and executes
+the sample, creates a dual-RID package with an ephemeral test signature, and
+installs it through a pinned MirrorPulse production catalog. The production
+Supervisor then exercises both roots and mutations in the installed Worker.
+Run `pwsh ./eng/verify-generated-template.ps1 -ProductRepositoryPath C:/Path/To/MirrorPulse`
+to reproduce this gate. No Cloud Files registration is needed for this check.
