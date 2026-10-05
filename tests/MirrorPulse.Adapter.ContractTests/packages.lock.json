@@ -1,17 +1,17 @@
 {
-  "version": 2,
+  "version": 1,
   "dependencies": {
     "net10.0-windows7.0": {
       "mirrorpulse.adapter.conformance": {
         "type": "Project",
         "dependencies": {
-          "MirrorPulse.Adapter.Sdk": "[0.2.0, )"
+          "MirrorPulse.Adapter.Sdk": "[0.0.0, )"
         }
       },
       "mirrorpulse.adapter.sampleworker": {
         "type": "Project",
         "dependencies": {
-          "MirrorPulse.Adapter.Sdk": "[0.2.0, )"
+          "MirrorPulse.Adapter.Sdk": "[0.0.0, )"
         }
       },
       "mirrorpulse.adapter.sdk": {

@@ -1,9 +1,9 @@
 [CmdletBinding()]
-param([string]$Python = 'python')
+param([string]$Python = 'python', [string]$Runner)
 $ErrorActionPreference = 'Stop'
 $pythonPath = (Get-Command $Python).Source
 $fixture = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../tests/wire-worker.py'))
-$runner = Join-Path $PSScriptRoot '../tools/MirrorPulse.Adapter.Conformance/bin/Release/net10.0-windows/MirrorPulse.Adapter.Conformance.exe'
+$runner = if ($Runner) { [IO.Path]::GetFullPath($Runner) } else { Join-Path $PSScriptRoot '../tools/MirrorPulse.Adapter.Conformance/bin/Release/net10.0-windows/MirrorPulse.Adapter.Conformance.exe' }
 $root = Join-Path ([IO.Path]::GetFullPath('artifacts/wire-conformance')) ([Guid]::NewGuid().ToString('N'))
 $previous = $env:MP_WIRE_FIXTURE_FAULT
 try {

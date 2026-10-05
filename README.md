@@ -68,10 +68,14 @@ JSON and binary golden vectors. `eng/verify-wire-conformance.ps1` exercises a
 test-only Python process that imports no SDK and detects wrong-root, missing
 capability and broken-cancellation variants. Python 3 is required for this gate.
 
-`SDK Release` builds the fixed version from the SDK project, tests self-contained
-conformance runners on native x64 and ARM64, and defaults to uploading candidate
-artifacts. Publishing uses the `sdk-release` environment and its actual main-only
-branch rule and owner review. It requires no NuGet publication credential.
+`SDK Release` follows the [CfSharp branch model](docs/repository-policy.md):
+classified develop PRs merged into main prepare stable releases, and explicit
+develop dispatches prepare `X.Y.Z-preview.N` previews. Manual dispatch defaults
+to a dry run. Both native x64 and ARM64 conformance gates run before new versions
+publish. NuGet trusted publishing uses GitHub OIDC through `NuGet/login`, with
+the `stable` or `preview` environment and the `NUGET_USER` profile-name secret.
+See [trusted publishing setup](docs/nuget-publishing.md) for the exact policy
+fields and mirroring existing SDK `0.2.0` without rebuilding its original package.
 The resulting `sdk-vVERSION` Release contains one `.nupkg`, two native runner
 archives, the specification/vectors archive and `sdk-release.json` with source
 SHA, asset names, lengths and SHA256. Existing tags and assets are never replaced.

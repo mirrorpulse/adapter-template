@@ -1,10 +1,9 @@
 [CmdletBinding()]
 param([Parameter(Mandatory)][ValidatePattern('^[0-9a-f]{40}$')][string]$SourceSha,
-      [string]$OutputDirectory = 'artifacts/sdk-release')
+      [string]$OutputDirectory = 'artifacts/sdk-release', [Parameter(Mandatory)][string]$Version)
 $ErrorActionPreference = 'Stop'
-. (Join-Path $PSScriptRoot 'release-policy.ps1')
-[xml]$project = Get-Content -LiteralPath (Join-Path $PSScriptRoot '../src/MirrorPulse.Adapter.Sdk/MirrorPulse.Adapter.Sdk.csproj') -Raw
-$version = Get-AdapterReleaseVersion ([string]$project.Project.PropertyGroup.Version)
+. (Join-Path $PSScriptRoot 'sdk-version-policy.ps1')
+$version = Get-SdkReleaseVersion $Version
 $actualSource = & git rev-parse HEAD
 $changes = @(& git status --porcelain)
 if ($LASTEXITCODE -ne 0 -or $actualSource -cne $SourceSha -or $changes.Count -ne 0) { throw 'SDK assets require an exact clean source commit.' }
@@ -13,7 +12,7 @@ if (Test-Path -LiteralPath $output) { throw 'Release output must be a new direct
 New-Item -ItemType Directory -Path $output | Out-Null
 & dotnet restore src/MirrorPulse.Adapter.Sdk --locked-mode
 if ($LASTEXITCODE -ne 0) { throw 'SDK restore failed.' }
-& dotnet pack src/MirrorPulse.Adapter.Sdk -c Release --no-restore -o $output
+& dotnet pack src/MirrorPulse.Adapter.Sdk -c Release --no-restore -o $output "-p:Version=$version" "-p:PackageVersion=$version" "-p:RepositoryCommit=$SourceSha"
 if ($LASTEXITCODE -ne 0) { throw 'SDK pack failed.' }
 & dotnet restore tools/MirrorPulse.Adapter.Conformance --locked-mode -p:SelfContained=true
 if ($LASTEXITCODE -ne 0) { throw 'Runner locked restore failed.' }
