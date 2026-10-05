@@ -2,6 +2,7 @@
 param([Parameter(Mandatory)][string]$PackagePath, [switch]$DryRun)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'release-policy.ps1')
+Assert-AdapterPackageIdentity -PackagePath $PackagePath
 $stream = [IO.File]::Open($PackagePath, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
 $archive = [IO.Compression.ZipArchive]::new($stream, [IO.Compression.ZipArchiveMode]::Update)
 $certificate = $null

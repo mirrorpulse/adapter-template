@@ -10,6 +10,7 @@ if ($manifest.adapterId -cnotmatch '^[a-z0-9]+(\.[a-z0-9-]+)+$') { throw 'The Ad
 $root = Join-Path ([IO.Path]::GetFullPath($OutputDirectory)) ([Guid]::NewGuid().ToString('N'))
 $packageRoot = Join-Path $root 'payload'
 New-Item -ItemType Directory -Path $packageRoot -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot '../LICENSE') -Destination (Join-Path $packageRoot 'LICENSE')
 & dotnet restore $settings.workerProject --locked-mode
 if ($LASTEXITCODE -ne 0) { throw 'Worker locked restore failed.' }
 foreach ($runtime in @('win-x64', 'win-arm64')) {

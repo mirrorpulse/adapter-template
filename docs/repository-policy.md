@@ -26,7 +26,7 @@ environment. Provider signing remains a separate credential boundary; never
 expose signing secrets in pull request builds. SDK and provider package versions
 are independent of the negotiated Worker protocol version.
 
-The SDK workflow implements these channels; see [NuGet publishing](nuget-publishing.md). The sample provider release workflow still accepts numeric package versions and uses `adapter-signing` and `adapter-release`. Its provider preview channel requires package version support and a separate workflow migration before use.
+The SDK and sample Provider workflows implement these channels; see [NuGet publishing](nuget-publishing.md). Provider package scripts accept canonical stable/preview identities and preserve existing four-part numeric packages. Signing runs separately in `adapter-signing`, restricted to main/develop; publication runs in `stable` or `preview` only after the signed candidate passes both native architecture gates and production installation. Dry runs use an in-memory disposable key and cannot publish. Tag pushes are not a publication entry point.
 
 Release tags cannot be updated or deleted, including by administrators. SDK tags
 use `sdk-vVERSION`; provider and application tags use `vVERSION`. Published
