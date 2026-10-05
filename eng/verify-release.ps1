@@ -42,6 +42,7 @@ try {
     if ([IO.Path]::GetFileName($package) -cne "$expectedIdentity-0.1.0-preview.1.mpadapter") { throw 'The preview package filename differs from its identity.' }
     $zip = [IO.Compression.ZipFile]::OpenRead($package)
     try {
+        if ($null -eq $zip.GetEntry('LICENSE')) { throw 'The package must include its license.' }
         $reader = [IO.StreamReader]::new($zip.GetEntry('manifest.json').Open())
         try { $manifest = $reader.ReadToEnd() | ConvertFrom-Json } finally { $reader.Dispose() }
         if ($manifest.version -cne $env:MP_RELEASE_VERSION) { throw 'The package manifest version differs from its filename.' }
