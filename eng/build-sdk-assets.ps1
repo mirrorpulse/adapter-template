@@ -21,9 +21,14 @@ foreach ($runtime in @('win-x64', 'win-arm64')) {
     $publish = Join-Path (Split-Path -Parent $output) ('sdk-runner/' + [Guid]::NewGuid().ToString('N') + '/' + $runtime)
     & dotnet publish tools/MirrorPulse.Adapter.Conformance -c Release -r $runtime --self-contained true --no-restore -o $publish
     if ($LASTEXITCODE -ne 0) { throw 'Runner publish failed.' }
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot '../LICENSE') -Destination (Join-Path $publish 'MirrorPulse-LICENSE.txt')
     [IO.Compression.ZipFile]::CreateFromDirectory($publish, (Join-Path $output "MirrorPulse.Adapter.Conformance-$version-$runtime.zip"))
 }
-[IO.Compression.ZipFile]::CreateFromDirectory((Join-Path $PSScriptRoot '../spec'), (Join-Path $output "MirrorPulse.Worker.Spec-$version.zip"))
+$specification = Join-Path (Split-Path -Parent $output) ('sdk-spec/' + [Guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $specification -Force | Out-Null
+Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot '../spec') | Copy-Item -Destination $specification -Recurse
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot '../LICENSE') -Destination (Join-Path $specification 'LICENSE')
+[IO.Compression.ZipFile]::CreateFromDirectory($specification, (Join-Path $output "MirrorPulse.Worker.Spec-$version.zip"))
 $assets = @(Get-ChildItem -LiteralPath $output -File | Sort-Object Name | ForEach-Object {
     [ordered]@{ name = $_.Name; length = $_.Length; sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() }
 })

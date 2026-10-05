@@ -13,12 +13,13 @@ $packages = @(Get-ChildItem -LiteralPath $feed -Filter '*.nupkg' -File)
 if ($packages.Count -ne 1) { throw 'Expected exactly one SDK package.' }
 $zip = [IO.Compression.ZipFile]::OpenRead($packages[0].FullName)
 try {
-    $allowed = @('_rels/.rels', 'MirrorPulse.Adapter.Sdk.nuspec', 'README.md', '[Content_Types].xml', 'lib/net10.0-windows7.0/MirrorPulse.Adapter.Sdk.dll')
+    $allowed = @('_rels/.rels', 'MirrorPulse.Adapter.Sdk.nuspec', 'README.md', 'LICENSE', '[Content_Types].xml', 'lib/net10.0-windows7.0/MirrorPulse.Adapter.Sdk.dll')
     foreach ($entry in $zip.Entries) {
         if ($entry.FullName -notin $allowed -and $entry.FullName -notmatch '^package/services/metadata/core-properties/(?:[a-f0-9]+|nuget)\.psmdcp$') {
             throw "Unexpected SDK package entry: $($entry.FullName)"
         }
     }
+    if (-not $zip.GetEntry('LICENSE')) { throw 'SDK package must include its Apache-2.0 text.' }
 } finally { $zip.Dispose() }
 $consumer = Join-Path $root 'consumer'
 New-Item -ItemType Directory -Path $consumer -Force | Out-Null

@@ -18,6 +18,15 @@ foreach ($name in $names) {
     $path = Join-Path $root $name
     if ((Get-Item -LiteralPath $path).Length -ne $asset[0].length -or
         (Get-FileHash -LiteralPath $path).Hash.ToLowerInvariant() -cne $asset[0].sha256) { throw 'SDK asset hash mismatch.' }
+    $archive = [IO.Compression.ZipFile]::OpenRead($path)
+    try {
+        $license = if ($name -like 'MirrorPulse.Adapter.Conformance-*') { 'MirrorPulse-LICENSE.txt' } else { 'LICENSE' }
+        $entry = $archive.GetEntry($license)
+        if (-not $entry) { throw 'A distributed SDK asset is missing its own license.' }
+        $stream = $entry.Open()
+        try { $actual = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($stream)) } finally { $stream.Dispose() }
+        if ($actual -cne (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../LICENSE')).Hash) { throw 'SDK license text changed during packaging.' }
+    } finally { $archive.Dispose() }
 }
 if ($ExecuteRunner) {
     $runtime = if ([Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture -eq 'Arm64') { 'win-arm64' } else { 'win-x64' }
