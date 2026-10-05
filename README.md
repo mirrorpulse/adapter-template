@@ -31,10 +31,18 @@ The executable sample implements a bounded, ephemeral memory source. Each enable
 
 `eng/release-settings.json` selects the Worker project. `eng/release-manifest.json`
 owns package metadata. Version and tag inputs enter scripts only as environment
-data and must be canonical numeric versions. Every referenced Action uses a full
+data and must be canonical `X.Y.Z` or `X.Y.Z-preview.N` versions. Existing
+four-part numeric identities are preserved when validating old packages. Every referenced Action uses a full
 commit SHA. Build runs without signing secrets; sign and publish use separate
 jobs, environments and permissions. Manual dispatch defaults to signing artifacts
 without creating tags or Releases.
+
+`eng/resolve-adapter-version.ps1` resolves the next stable or preview version
+from published GitHub Releases using the CfSharp increment policy. Preview
+counters are compared numerically; previews are published as prereleases and
+cannot replace the stable `latest` release. The package filename, manifest and
+release version must agree before signing or publication. Provider publication
+entry points and protected channels are migrated separately from this version contract.
 
 Configure the `adapter-signing` and `adapter-release` environments with trusted
 branch/tag rules, required reviewers and scoped signing secrets before enabling
