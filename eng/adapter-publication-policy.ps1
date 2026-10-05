@@ -25,3 +25,16 @@ function Get-AdapterPublicationRequest {
     if ($Publish -and $Channel -ceq 'Stable') { throw 'New stable versions require a classified develop PR merged into main.' }
     [pscustomobject]@{ Channel = $Channel; Publish = $Publish }
 }
+
+function Get-AdapterReleaseCreateArguments {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Repository, [Parameter(Mandatory)][string]$Tag,
+        [Parameter(Mandatory)][string]$Version, [Parameter(Mandatory)][ValidateSet('stable', 'preview')][string]$Channel,
+        [Parameter(Mandatory)][string[]]$Assets)
+    $arguments = @('release', 'create', $Tag) + $Assets + @('--repo', $Repository, '--verify-tag',
+        '--title', "Adapter $Version", '--notes',
+        'Signed process Adapter with native x64 and ARM64 conformance, production installation verification, and a fixed SHA256 inventory.')
+    if ($Channel -ceq 'preview') { $arguments += @('--prerelease', '--latest=false') }
+    else { $arguments += @('--latest=true') }
+    $arguments
+}

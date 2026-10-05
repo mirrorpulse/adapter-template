@@ -2,6 +2,15 @@
 param([string]$AssetDirectory, [string]$SourceSha)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'adapter-publication-policy.ps1')
+foreach ($channel in @('stable', 'preview')) {
+    $arguments = @(Get-AdapterReleaseCreateArguments -Repository 'MirrorPulse/adapter-template' -Tag 'v1.2.3' -Version '1.2.3' -Channel $channel -Assets @('C:\candidate with spaces\adapter.mpadapter'))
+    if ($arguments -contains '-' -or $arguments[0] -cne 'release' -or $arguments[1] -cne 'create' -or
+        $arguments[3] -cne 'C:\candidate with spaces\adapter.mpadapter' -or @($arguments | Where-Object { $_.StartsWith('--latest=') }).Count -ne 1) {
+        throw 'The native release argument array was split or changed.'
+    }
+    if ($channel -ceq 'stable' -and ($arguments[-1] -cne '--latest=true' -or $arguments -contains '--prerelease')) { throw 'Stable release options were corrupted.' }
+    if ($channel -ceq 'preview' -and ($arguments[-1] -cne '--latest=false' -or $arguments[-2] -cne '--prerelease')) { throw 'Preview release options were corrupted.' }
+}
 $identity = @{ SourceSha = ('a' * 40); EventSha = ('a' * 40); Repository = 'MirrorPulse/adapter-template' }
 foreach ($case in @(
     @{ event = 'push'; ref = 'refs/heads/main'; channel = ''; publish = $false; confirm = ''; expected = $true; expectedChannel = 'Stable' },
