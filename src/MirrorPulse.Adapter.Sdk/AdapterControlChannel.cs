@@ -22,6 +22,19 @@ public sealed class AdapterControlChannel : IAsyncDisposable
     private readonly AdapterNamedPipeClient _pipe;
     private readonly Guid _instanceId;
     private readonly Guid _workerSessionId;
+    private int _protocolVersion = 1;
+    private bool _protocolSelected;
+
+    public int ProtocolVersion => _protocolVersion;
+
+    public void SelectProtocol(int version)
+    {
+        if (version is not (1 or 2)) throw new InvalidDataException("ProtocolVersionUnsupported");
+        if (_protocolSelected && version != _protocolVersion)
+            throw new InvalidOperationException("The session protocol is already selected.");
+        _protocolVersion = version;
+        _protocolSelected = true;
+    }
 
     public AdapterControlChannel(AdapterNamedPipeClient pipe, Guid instanceId, Guid workerSessionId)
     {
@@ -50,7 +63,7 @@ public sealed class AdapterControlChannel : IAsyncDisposable
         }
 
         var frame = new AdapterControlFrame(
-            1, messageType, requestId, _instanceId, _workerSessionId, isResponse,
+            _protocolVersion, messageType, requestId, _instanceId, _workerSessionId, isResponse,
             JsonSerializer.SerializeToElement(payload, JsonOptions));
         await _pipe.WriteFrameAsync(JsonSerializer.SerializeToUtf8Bytes(frame, JsonOptions), cancellationToken)
             .ConfigureAwait(false);
@@ -61,7 +74,9 @@ public sealed class AdapterControlChannel : IAsyncDisposable
         byte[] bytes = await _pipe.ReadFrameAsync(cancellationToken).ConfigureAwait(false);
         AdapterControlFrame frame = JsonSerializer.Deserialize<AdapterControlFrame>(bytes, JsonOptions)
             ?? throw new InvalidDataException("The Host sent a null control frame.");
-        if (frame.ProtocolVersion != 1 || frame.InstanceId != _instanceId ||
+        bool selectingV2 = _protocolVersion == 1 && frame.ProtocolVersion == 2 &&
+            frame.MessageType == "Ready" && frame.IsResponse;
+        if ((!selectingV2 && frame.ProtocolVersion != _protocolVersion) || frame.InstanceId != _instanceId ||
             frame.WorkerSessionId != _workerSessionId || frame.RequestId == Guid.Empty ||
             string.IsNullOrWhiteSpace(frame.MessageType) || frame.Payload.ValueKind is JsonValueKind.Undefined)
         {
