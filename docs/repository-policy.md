@@ -19,12 +19,14 @@ permission can provide the approving review; no named PR reviewer is enforced.
 
 ## Publication
 
-Stable publication uses the `stable` environment, restricted to protected
+The shared publication model uses the `stable` environment, restricted to protected
 branches and approved by a reviewer other than the initiating actor. Preview
 publication is explicitly requested from `develop` through the `preview`
 environment. Provider signing remains a separate credential boundary; never
 expose signing secrets in pull request builds. SDK and provider package versions
 are independent of the negotiated Worker protocol version.
+
+The SDK workflow implements these channels; see [NuGet publishing](nuget-publishing.md). The sample provider release workflow still accepts numeric package versions and uses `adapter-signing` and `adapter-release`. Its provider preview channel requires package version support and a separate workflow migration before use.
 
 Release tags cannot be updated or deleted, including by administrators. SDK tags
 use `sdk-vVERSION`; provider and application tags use `vVERSION`. Published
