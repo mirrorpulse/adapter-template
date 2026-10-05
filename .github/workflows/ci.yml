@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
 
 permissions:
@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   build:
+    name: build-and-test (${{ matrix.runner }})
     strategy:
       fail-fast: false
       matrix:
