@@ -25,7 +25,33 @@ Check(AdapterHandshake.Negotiate(modern with { SupportedVersions = new(3, 3) }, 
 AdapterRootBinding[] roots = [new("photos", true, new Dictionary<string, string>()), new("archive", false, new Dictionary<string, string>())];
 AdapterHandshake.ValidateReady(new(2, AdapterHandshake.V2Capabilities, roots, new Dictionary<string, string>()), modern);
 Reject(() => AdapterHandshake.ValidateReady(new(2, AdapterHandshake.V2Capabilities, [roots[0], roots[0]], new Dictionary<string, string>()), modern), "Duplicate root keys");
-Console.WriteLine("Contract and handshake matrix checks passed.");
+var chunk = new AdapterBinaryChunk(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 0, new byte[] { 1, 2, 3 }, true) { RootKey = "photos" };
+byte[] encodedChunk = AdapterBinaryChunkV2Codec.Encode(chunk);
+Check(AdapterBinaryChunkV2Codec.Decode(encodedChunk).RootKey == "photos", "Binary root round trip");
+AdapterStreamBinding Binding() => new(chunk.RequestId, chunk.InstanceId, chunk.WorkerSessionId, chunk.StreamId, "photos", 0, 3);
+Binding().Accept(AdapterBinaryChunkV2Codec.Decode(encodedChunk));
+Reject(() => Binding().Accept(chunk with { RootKey = "archive" }), "Wrong binary root");
+Reject(() => Binding().Accept(chunk with { WorkerSessionId = Guid.NewGuid() }), "Wrong binary session");
+Reject(() => Binding().Accept(chunk with { StreamId = Guid.NewGuid() }), "Wrong binary stream");
+Reject(() => Binding().Accept(chunk with { Data = new byte[] { 1 }, EndOfStream = true }), "Short final chunk");
+var duplicate = Binding();
+duplicate.Accept(chunk);
+Reject(() => duplicate.Accept(chunk), "Duplicate chunk");
+Reject(() => AdapterBinaryChunkV2Codec.Encode(chunk with { Data = new byte[AdapterBinaryChunkV2Codec.MaximumChunkBytes + 1] }), "Oversized chunk");
+encodedChunk[^1] ^= 1;
+Reject(() => AdapterBinaryChunkV2Codec.Decode(encodedChunk), "Corrupt checksum");
+string cache = Path.Combine(Path.GetTempPath(), "MirrorPulse-contract", Guid.NewGuid().ToString("N"));
+try
+{
+    await using var lease = new AdapterTransferLease(cache);
+    string leasedPath = lease.Path;
+    CancellationToken leaseToken = lease.CancellationToken;
+    await lease.Stream.WriteAsync(new byte[] { 1, 2, 3 });
+    await lease.CancelAsync();
+    Check(leaseToken.IsCancellationRequested && !File.Exists(leasedPath), "Cancellation deletes actual lease");
+}
+finally { Directory.Delete(cache); }
+Console.WriteLine("Contract, handshake and binary boundary checks passed.");
 
 static void Check(bool condition, string name)
 {

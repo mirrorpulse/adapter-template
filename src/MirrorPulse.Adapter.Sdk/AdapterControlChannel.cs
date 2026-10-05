@@ -96,13 +96,15 @@ public sealed class AdapterControlChannel : IAsyncDisposable
             throw new InvalidDataException("The binary chunk belongs to another Worker session.");
         }
 
-        return _pipe.WriteFrameAsync(AdapterBinaryChunkCodec.Encode(chunk), cancellationToken);
+        return _pipe.WriteFrameAsync(_protocolVersion == 2 ? AdapterBinaryChunkV2Codec.Encode(chunk)
+            : AdapterBinaryChunkCodec.Encode(chunk), cancellationToken);
     }
 
     public async ValueTask<AdapterBinaryChunk> ReadChunkAsync(CancellationToken cancellationToken = default)
     {
-        AdapterBinaryChunk chunk = AdapterBinaryChunkCodec.Decode(
-            await _pipe.ReadFrameAsync(cancellationToken).ConfigureAwait(false));
+        byte[] bytes = await _pipe.ReadFrameAsync(cancellationToken).ConfigureAwait(false);
+        AdapterBinaryChunk chunk = _protocolVersion == 2 ? AdapterBinaryChunkV2Codec.Decode(bytes)
+            : AdapterBinaryChunkCodec.Decode(bytes);
         if (chunk.InstanceId != _instanceId || chunk.WorkerSessionId != _workerSessionId)
         {
             throw new InvalidDataException("The binary chunk belongs to another Worker session.");

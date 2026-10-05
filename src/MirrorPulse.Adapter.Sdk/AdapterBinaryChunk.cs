@@ -10,7 +10,10 @@ public sealed record AdapterBinaryChunk(
     Guid StreamId,
     long Offset,
     ReadOnlyMemory<byte> Data,
-    bool EndOfStream);
+    bool EndOfStream)
+{
+    public string? RootKey { get; init; }
+}
 
 /// <summary>Encodes the SDK side of the version-one binary chunk frame.</summary>
 public static class AdapterBinaryChunkCodec
