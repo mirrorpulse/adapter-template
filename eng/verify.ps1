@@ -8,3 +8,4 @@ foreach ($project in $projects) {
     & dotnet build $project --configuration Release --no-restore
     if ($LASTEXITCODE -ne 0) { throw "Build failed for $project." }
 }
+& (Join-Path $PSScriptRoot 'verify-sdk-package.ps1')

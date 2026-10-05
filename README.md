@@ -2,6 +2,20 @@
 
 This repository template is the starting point for an independently packaged MirrorPulse Adapter Worker.
 
+## Canonical SDK
+
+This repository owns `MirrorPulse.Adapter.Sdk`. Contract changes and package
+versions originate here. Other repositories consume a pinned package; source
+copies are compatibility snapshots until their package migration is complete.
+Version `0.2.0` preserves the v1 runtime API while introducing the v2 contract.
+SDK versions follow semantic versioning independently of Adapter package versions.
+Breaking wire changes require a new negotiated protocol version.
+
+Run `pwsh ./eng/verify-sdk-package.ps1` to pack the public library, inspect its
+inventory, and restore, lock and run a fresh consumer using only a local feed.
+The SDK package contains the public library and metadata, with no Worker,
+Host database, configuration, signing key or user data.
+
 ## Layout
 
 - `src/` contains reusable Worker SDK code.
