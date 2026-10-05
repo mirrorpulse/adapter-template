@@ -1,6 +1,7 @@
 [Bb]in/
 [Oo]bj/
 TestResults/
+artifacts/
 *.pfx
 *.p12
 *.key
