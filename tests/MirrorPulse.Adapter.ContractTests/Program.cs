@@ -61,6 +61,7 @@ try
 }
 finally { Directory.Delete(cache); }
 MirrorPulse.Adapter.ContractTests.DirectoryEffectContractChecks.Run();
+MirrorPulse.Adapter.ContractTests.DirectoryRetirementWireChecks.Run();
 Console.WriteLine("Contract, handshake and binary boundary checks passed.");
 string processCache = Path.Combine(Path.GetTempPath(), "MirrorPulse-conformance", Guid.NewGuid().ToString("N"));
 try
