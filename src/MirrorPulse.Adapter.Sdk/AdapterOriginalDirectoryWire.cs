@@ -7,6 +7,7 @@ namespace MirrorPulse.Adapter.Sdk;
 public static class AdapterOriginalDirectoryWire
 {
     public const string Capability = "original-directory-admission-v1";
+    public const string ChildCapability = "original-directory-child-effects-v1";
     public const string AdmissionRequestMessage = "AdmitOriginalDirectory";
     public const string AdmissionResponseMessage = "OriginalDirectoryAdmitted";
     public const string ChildRequestMessage = "ApplyOriginalChild";
@@ -34,6 +35,10 @@ public static class AdapterOriginalDirectoryWire
     public static AdapterOriginalChildEffectRequest ReadChildRequest(AdapterControlFrame frame, IEnumerable<string>? capabilities)
     {
         RequireRequest(frame, ChildRequestMessage, capabilities);
+        string[] negotiated = capabilities?.ToArray() ?? [];
+        AdapterDirectoryEffects.RequireNegotiated(frame.ProtocolVersion, negotiated);
+        if (!negotiated.Contains(ChildCapability, StringComparer.Ordinal))
+            throw new NotSupportedException("OriginalDirectoryChildEffectUnsupported");
         var request = AdapterProtocolJson.Decode<AdapterOriginalChildEffectRequest>(Payload(frame));
         request.Validate();
         if (request.InstanceId != frame.InstanceId) throw new InvalidDataException("OriginalDirectoryWireInstanceMismatch");
@@ -69,8 +74,7 @@ public static class AdapterOriginalDirectoryWire
     {
         ArgumentNullException.ThrowIfNull(frame);
         string[] negotiated = capabilities?.ToArray() ?? [];
-        AdapterDirectoryEffects.RequireNegotiated(frame.ProtocolVersion, negotiated);
-        if (!negotiated.Contains(Capability, StringComparer.Ordinal))
+        if (frame.ProtocolVersion != 2 || !negotiated.Contains(Capability, StringComparer.Ordinal))
             throw new NotSupportedException("OriginalDirectoryAdmissionUnsupported");
         if (frame.RequestId == Guid.Empty || frame.InstanceId == Guid.Empty || frame.WorkerSessionId == Guid.Empty)
             throw new InvalidDataException("OriginalDirectoryWireScopeRequired");
@@ -86,10 +90,15 @@ public static class AdapterOriginalDirectoryWire
     }
 }
 
-/// <summary>A backend persists admissions, validates its retained originals, and commits each effect and receipt atomically.</summary>
-public interface IAdapterOriginalDirectoryBackend
+/// <summary>A backend validates and persists complete original admissions without implying mutation capability.</summary>
+public interface IAdapterOriginalDirectoryAdmissionBackend
 {
     ValueTask<AdapterDirectoryAdmission> AdmitAsync(AdapterDirectoryAdmissionRequest request, CancellationToken cancellationToken);
+}
+
+/// <summary>A backend persists admissions, validates its retained originals, and commits each effect and receipt atomically.</summary>
+public interface IAdapterOriginalDirectoryBackend : IAdapterOriginalDirectoryAdmissionBackend
+{
     ValueTask<AdapterOwnedChildEffectReceipt> ApplyChildAsync(AdapterOriginalChildEffectRequest request, CancellationToken cancellationToken);
     ValueTask<AdapterOwnedChildEffectReceipt> RetireAsync(AdapterDirectoryRetirementRequest request, CancellationToken cancellationToken);
 }
@@ -98,7 +107,7 @@ public interface IAdapterOriginalDirectoryBackend
 public static class AdapterOriginalDirectoryDispatcher
 {
     public static async ValueTask<AdapterControlFrame> DispatchAsync(AdapterControlFrame frame,
-        IEnumerable<string>? negotiatedCapabilities, IAdapterOriginalDirectoryBackend backend, CancellationToken cancellationToken = default)
+        IEnumerable<string>? negotiatedCapabilities, IAdapterOriginalDirectoryAdmissionBackend backend, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(frame);
         ArgumentNullException.ThrowIfNull(backend);
@@ -120,7 +129,8 @@ public static class AdapterOriginalDirectoryDispatcher
         if (frame.MessageType == AdapterOriginalDirectoryWire.ChildRequestMessage)
         {
             var request = AdapterOriginalDirectoryWire.ReadChildRequest(frame, capabilities);
-            var receipt = await backend.ApplyChildAsync(request, cancellationToken).ConfigureAwait(false);
+            if (backend is not IAdapterOriginalDirectoryBackend effects) throw new NotSupportedException("OriginalDirectoryChildBackendRequired");
+            var receipt = await effects.ApplyChildAsync(request, cancellationToken).ConfigureAwait(false);
             var response = frame with
             {
                 IsResponse = true,
@@ -133,7 +143,8 @@ public static class AdapterOriginalDirectoryDispatcher
         if (frame.MessageType == AdapterDirectoryRetirementWire.RequestMessage)
         {
             var request = AdapterDirectoryRetirementWire.ReadRequest(frame, capabilities);
-            var receipt = await backend.RetireAsync(request, cancellationToken).ConfigureAwait(false);
+            if (backend is not IAdapterOriginalDirectoryBackend effects) throw new NotSupportedException("OriginalDirectoryRetirementBackendRequired");
+            var receipt = await effects.RetireAsync(request, cancellationToken).ConfigureAwait(false);
             var response = frame with
             {
                 IsResponse = true,

@@ -1,10 +1,12 @@
 # Original directory admission and child effects
 
-A capable Worker negotiates both `original-directory-effects-v1` and
-`original-directory-admission-v1` before accepting `AdmitOriginalDirectory`
-and `ApplyOriginalChild`. Their replies are `OriginalDirectoryAdmitted` and
-`OriginalChildApplied`. The existing `RetireOriginalDirectory` message
-completes an admitted directory after its children.
+A Worker negotiates `original-directory-admission-v1` before accepting
+`AdmitOriginalDirectory`, which returns `OriginalDirectoryAdmitted`.
+Individual `ApplyOriginalChild` / `OriginalChildApplied` exchanges additionally
+require `original-directory-effects-v1` and `original-directory-child-effects-v1`.
+The existing `RetireOriginalDirectory` message completes an admitted directory
+after its children under its existing effects capability. Admission alone grants
+neither mutation path.
 
 The Host sends the original instance, admission ID and complete ordered source
 operations. Every entry retains its stable operation ID, address, explicit
@@ -42,10 +44,17 @@ bounded payloads and request/session/instance correlation. Each body is limited
 to 1 MiB. `AdapterOriginalDirectoryDispatcher` decodes before calling the backend
 and validates the backend reply before returning a control frame. A Worker can
 route these messages from its existing control reader to an
-`IAdapterOriginalDirectoryBackend` implementation.
+`IAdapterOriginalDirectoryBackend` implementation. An admission-only backend can
+implement `IAdapterOriginalDirectoryAdmissionBackend`; the dispatcher refuses
+individual effects when that implementation is unavailable.
 
 Backend implementations also own root authorization, native path rules,
 complete history, exclusion during validation and mutation, and crash recovery.
 The dispatcher supports protocol validation around that implementation.
 Production enablement requires signed Host and Worker qualification of the
 complete admitted operation and official journal acknowledgement.
+
+A backend that only commits an entire original subtree atomically can use the
+separately negotiated [atomic deletion contract](atomic-original-directory-deletion.md).
+It must not return an individual child receipt while that child's native
+transaction can still roll back.

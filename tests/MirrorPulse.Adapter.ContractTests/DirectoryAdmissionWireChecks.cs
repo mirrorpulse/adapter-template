@@ -5,7 +5,8 @@ namespace MirrorPulse.Adapter.ContractTests;
 
 internal static class DirectoryAdmissionWireChecks
 {
-    private static readonly string[] Capabilities = [AdapterDirectoryEffects.Capability, AdapterOriginalDirectoryWire.Capability];
+    private static readonly string[] Capabilities = [AdapterDirectoryEffects.Capability, AdapterOriginalDirectoryWire.Capability,
+        AdapterOriginalDirectoryWire.ChildCapability];
 
     internal static async Task RunAsync()
     {
@@ -33,9 +34,18 @@ internal static class DirectoryAdmissionWireChecks
         CheckAdmissionRefusals(fixture, requestFrame, response);
         CheckChildRefusals(fixture, child, childFrame, applied);
 
+        var admissionOnly = new AdmissionOnlyBackend(fixture.Admission);
+        var observed = await AdapterOriginalDirectoryDispatcher.DispatchAsync(requestFrame, [AdapterOriginalDirectoryWire.Capability], admissionOnly);
+        _ = AdapterOriginalDirectoryWire.ReadAdmissionResponse(requestFrame, observed, [AdapterOriginalDirectoryWire.Capability]);
+        await UnsupportedAsync(() => AdapterOriginalDirectoryDispatcher.DispatchAsync(childFrame, Capabilities, admissionOnly));
+        await UnsupportedAsync(() => AdapterOriginalDirectoryDispatcher.DispatchAsync(finalFrame, Capabilities, admissionOnly));
+
         int calls = backend.Admissions + backend.Effects + backend.Retirements;
         await UnsupportedAsync(() => AdapterOriginalDirectoryDispatcher.DispatchAsync(requestFrame, [AdapterDirectoryEffects.Capability], backend));
-        await UnsupportedAsync(() => AdapterOriginalDirectoryDispatcher.DispatchAsync(requestFrame, [AdapterOriginalDirectoryWire.Capability], backend));
+        await UnsupportedAsync(() => AdapterOriginalDirectoryDispatcher.DispatchAsync(childFrame,
+            [AdapterDirectoryEffects.Capability, AdapterOriginalDirectoryWire.Capability], backend));
+        await UnsupportedAsync(() => AdapterOriginalDirectoryDispatcher.DispatchAsync(childFrame,
+            [AdapterOriginalDirectoryWire.Capability, AdapterOriginalDirectoryWire.ChildCapability], backend));
         await UnsupportedAsync(() => AdapterOriginalDirectoryDispatcher.DispatchAsync(requestFrame with { ProtocolVersion = 1 }, Capabilities, backend));
         await RejectAsync(() => AdapterOriginalDirectoryDispatcher.DispatchAsync(requestFrame with
         {
@@ -188,7 +198,7 @@ internal static class DirectoryAdmissionWireChecks
         Unsupported(() => AdapterOriginalDirectoryWire.ReadChildRequest(request, [AdapterDirectoryEffects.Capability]));
     }
 
-    private sealed class Fixture
+    internal sealed class Fixture
     {
         internal Guid Session { get; } = Guid.NewGuid();
         internal AdapterOperationRequest Leaf { get; }
@@ -265,6 +275,15 @@ internal static class DirectoryAdmissionWireChecks
         private AdapterDirectoryGenerationWitness Witness(string path, string generation, string revision, string? parent) =>
             new(1, Request.InstanceId, Request.AdmissionId, Guid.NewGuid(), new("source", path), generation, revision, parent,
                 Request.RequestFingerprint, "AQID");
+    }
+
+    private sealed class AdmissionOnlyBackend(AdapterDirectoryAdmission admission) : IAdapterOriginalDirectoryAdmissionBackend
+    {
+        public ValueTask<AdapterDirectoryAdmission> AdmitAsync(AdapterDirectoryAdmissionRequest request, CancellationToken cancellationToken)
+        {
+            admission.RequireRequest(request);
+            return ValueTask.FromResult(admission);
+        }
     }
 
     private sealed class Backend(Fixture fixture) : IAdapterOriginalDirectoryBackend
