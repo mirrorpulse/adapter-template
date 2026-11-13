@@ -15,6 +15,10 @@ The optional [original directory effect contract](spec/original-directory-effect
 provides bounded generation witnesses and accepted direct-parent transitions.
 Consuming the SDK does not advertise the capability or establish backend atomicity.
 
+Directory admission and child-effect messages bind a complete original plan,
+its backend generations and owned parent transitions to typed Worker requests.
+[Protocol details](docs/original-directory-admission-wire.md)
+
 Run `pwsh ./eng/verify-sdk-package.ps1` to pack the public library, inspect its
 inventory, and restore, lock and run a fresh consumer using only a local feed.
 The SDK package contains the public library and metadata, with no Worker,
