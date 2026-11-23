@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$LocalCandidateDirectory, [string]$ProductRepositoryPath)
+param([string]$LocalCandidateDirectory, [string]$ProductRepositoryPath, [switch]$CheckReleasePolicy)
 
 $ErrorActionPreference = 'Stop'
 $repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -30,11 +30,14 @@ try {
 
     Push-Location -LiteralPath $workingDirectory
     try {
-        $output = @(& ./Build-Adapter.ps1)
+        $buildArgs = @{}
+        if ($CheckReleasePolicy) { $buildArgs.Version = '0.1.0-preview.1' }
+        $output = @(& ./Build-Adapter.ps1 @buildArgs)
         $package = [string]$output[-1]
         if (-not (Test-Path -LiteralPath $package -PathType Leaf)) { throw 'The generated template did not create a package.' }
         git check-ignore -- $package | Out-Null
         if ($LASTEXITCODE -ne 0) { throw 'Generated Adapter packages must be ignored by Git.' }
+        if ($CheckReleasePolicy) { & ./eng/verify-release.ps1 -SignedPreviewPackagePath $package }
         & ./eng/verify-template-worker.ps1 -PackagePath $package -LocalCandidateDirectory $LocalCandidateDirectory
         if ($product) {
             & ./eng/verify-template-product.ps1 -PackagePath $package -ProductRepositoryPath $product `
@@ -43,6 +46,7 @@ try {
         [ordered]@{
             schemaVersion = 1
             verified = $true
+            releasePolicyVerified = $CheckReleasePolicy.IsPresent
             productHostVerified = [bool]$product
             packageSha256 = (Get-FileHash -LiteralPath $package).Hash.ToLowerInvariant()
         } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $evidence 'template-conformance.json')

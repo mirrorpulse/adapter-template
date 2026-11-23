@@ -25,8 +25,6 @@ jobs:
           global-json-file: global.json
       - name: Verify the locked sample build
         run: pwsh ./eng/verify.ps1
-      - name: Verify release inputs and dual-RID signing
-        run: pwsh ./eng/verify-release.ps1
       - name: Resolve the product verifier revision
         id: product-verifier
         shell: pwsh
@@ -43,7 +41,7 @@ jobs:
       - name: Build a fresh template and run its signed Worker in the SDK and product Host
         env:
           GH_TOKEN: ${{ github.token }}
-        run: pwsh ./eng/verify-generated-template.ps1 -ProductRepositoryPath artifacts/product-verifier
+        run: pwsh ./eng/verify-generated-template.ps1 -ProductRepositoryPath artifacts/product-verifier -CheckReleasePolicy
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: template-conformance-${{ matrix.runner }}
