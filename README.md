@@ -1,125 +1,18 @@
-# MirrorPulse Adapters
+# MirrorPulse Adapter template
 
-This repository template is the starting point for an independently packaged MirrorPulse Adapter Worker.
+Use this template to build an Adapter Worker for MirrorPulse. The example exposes a single in-memory storage root. Clone the repository, change the package identity and presentation, then replace the sample storage implementation.
 
-## Canonical SDK
+## Build a package
 
-This repository owns `MirrorPulse.Adapter.Sdk`. Contract changes and package
-versions originate here. Other repositories consume a pinned package; source
-copies are compatibility snapshots until their package migration is complete.
-Version `0.2.0` preserves the v1 runtime API while introducing the v2 contract.
-SDK versions follow semantic versioning independently of Adapter package versions.
-Breaking wire changes require a new negotiated protocol version.
+Install PowerShell 7 and the .NET SDK selected by `global.json`. On Windows, double-click `Build-Adapter.cmd`. Use `./build-adapter.sh` on macOS or Linux to cross-build both Windows Worker targets. The launchers restore locked dependencies, build x64 and ARM64, create a `.mpadapter`, and sign and verify it with a disposable test key. Find the resulting path in the output under `artifacts/release`.
 
-The optional [original directory effect contract](spec/original-directory-effects.md)
-provides bounded generation witnesses and accepted direct-parent transitions.
-Consuming the SDK does not advertise the capability or establish backend atomicity.
+Run `pwsh ./Build-Adapter.ps1 -Version 1.0.0-preview.1` to choose a package version. Use the protected release workflow for publication. The development launcher also accepts `-ReleaseSignature` when the signing environment is already configured.
 
-Directory admission and child-effect messages bind a complete original plan,
-its backend generations and owned parent transitions to typed Worker requests.
-[Protocol details](docs/original-directory-admission-wire.md)
+## Customize the Adapter
 
-Run `pwsh ./eng/verify-sdk-package.ps1` to pack the public library, inspect its
-inventory, and restore, lock and run a fresh consumer using only a local feed.
-The SDK package contains the public library and metadata, with no Worker,
-Host database, configuration, signing key or user data.
+1. Edit `eng/release-manifest.json`. Set your Adapter ID, publisher, and single root key. Keep that root key stable across updates.
+2. Edit `template/package/forms/config.xml` and `template/package/locales/en-US.json`. Replace `template/package/assets/logo.png` with your own local logo. The package signature covers these files.
+3. Implement your storage behavior in `samples/MirrorPulse.Adapter.SampleWorker`. Use the documented SDK handshake and keep deployment settings and credentials in MirrorPulse.
+4. Run `pwsh ./eng/verify.ps1` to validate and build the sample, then use a Windows runner to verify its signed Worker. MirrorPulse retains ownership of actual user configuration, credentials and deployments.
 
-## Build a local package
-
-On Windows, double-click `Build-Adapter.cmd` to restore the locked Worker dependencies,
-build the x64 and ARM64 payloads, and sign and verify a test package. Open the
-result printed under `artifacts/release`. This requires PowerShell 7 and the .NET
-SDK selected by `global.json`.
-
-On macOS and Linux, `./build-adapter.sh` invokes the same PowerShell script and
-cross-builds Windows Worker payloads. The .NET SDK must support the requested
-runtime targets. Run Worker and Host conformance on Windows.
-
-Run `pwsh ./Build-Adapter.ps1 -Version 1.0.0-preview.1` to select a version.
-Use `-ReleaseSignature` with your configured signing environment when preparing
-a release candidate. The build commands write only local package artifacts.
-
-## Layout
-
-- `src/` contains reusable Worker SDK code.
-- `samples/` contains a minimal executable Worker.
-- `template/` contains the manifest and `.mpadapter` package skeleton.
-- `eng/` contains repository validation and packaging scripts.
-
-Adapters communicate with MirrorPulse over the current-user Named Pipe contract and receive configuration, credentials references, source-directory grants, and cache paths from MirrorPulse at runtime.
-
-The executable sample implements a bounded, ephemeral memory source. Each enabled root starts with `readme.txt`; its bytes identify that root. All source content and retry receipts disappear when the process exits. Provider repositories replace this demonstration source with their storage implementation.
-
-## Release reference
-
-`eng/release-settings.json` selects the Worker project. `eng/release-manifest.json`
-owns package metadata. Version and tag inputs enter scripts only as environment
-data and must be canonical `X.Y.Z` or `X.Y.Z-preview.N` versions. Existing
-four-part numeric identities are preserved when validating old packages. Every referenced Action uses a full
-commit SHA. Build runs without signing secrets; sign and publish use separate
-jobs, environments and permissions. Manual dispatch defaults to signing artifacts
-with a disposable test key, without production credentials, tags, or Releases.
-
-`eng/resolve-adapter-version.ps1` resolves the next stable or preview version
-from published GitHub Releases using the CfSharp increment policy. Preview
-counters are compared numerically; previews are published as prereleases and
-cannot replace the stable `latest` release. The package filename, manifest and
-release version must agree before signing or publication. Provider publication
-entry points are described below.
-
-`Signed Adapter Release` prepares stable candidates from a classified same-repository
-develop PR merged into main. Explicit preview publication requires a dispatch on
-develop with `publish=true` and `confirm=PUBLISH`. Tag pushes do not publish.
-The unsigned build has no signing credentials. The `adapter-signing` environment
-must restrict deployments to main and develop; publication uses the `stable` or
-`preview` environment. Stable approvals prohibit self-review. Environment names
-in YAML do not create those protections. Organization signing secrets remain
-supported without reading or replacing their values.
-
-Both native x64 and ARM64 jobs verify the same signed package, run the actual
-Worker, and install it in a fixed MirrorPulse production checkout. Production
-candidates must pass the product's built-in official trust anchor; disposable
-test signatures are accepted only by the explicit dry-run gate. `provider-release.json`
-records the source SHA and original asset hashes. Publication uploads those
-original files and fails rather than replacing a tag or release.
-
-Run `pwsh ./eng/verify-release.ps1` for hostile version rejection and a dual-RID
-package signed with an in-memory disposable key. It never reads a private key
-file or publishes a Release. The packaging verifier checks the embedded signature
-and inventory against the exported public key; product installation independently
-checks publisher trust. The example uses v2 exclusively because it declares multiple roots. The SDK
-retains v1 for explicitly negotiated single-root Workers. Transfer files are
-temporary leases under the Host-provided cache; there is no persistent settings
-directory. The sample limits files to 2 MiB, source content to 8 MiB, nodes to
-4096, roots to 64, concurrent uploads to four and in-session retry receipts to
-256. Directory moves are explicitly unsupported.
-
-CI runs on native x64 and ARM64 Windows runners. It copies only tracked source
-into a fresh Git repository, restores locked dependencies, builds and executes
-the sample, creates a dual-RID package with an ephemeral test signature, and
-installs it through a pinned MirrorPulse production catalog. The production
-Supervisor then exercises both roots and mutations in the installed Worker.
-Run `pwsh ./eng/verify-generated-template.ps1 -ProductRepositoryPath C:/Path/To/MirrorPulse`
-to reproduce this gate. No Cloud Files registration is needed for this check.
-
-## Worker protocol and SDK releases
-
-The language-neutral contract is in [spec/worker-v2.md](spec/worker-v2.md), with
-JSON and binary golden vectors. `eng/verify-wire-conformance.ps1` exercises a
-test-only Python process that imports no SDK and detects wrong-root, missing
-capability and broken-cancellation variants. Python 3 is required for this gate.
-
-`SDK Release` follows the [CfSharp branch model](docs/repository-policy.md):
-classified develop PRs merged into main prepare stable releases, and explicit
-develop dispatches prepare `X.Y.Z-preview.N` previews. Manual dispatch defaults
-to a dry run. Both native x64 and ARM64 conformance gates run before new versions
-publish. NuGet trusted publishing uses GitHub OIDC through `NuGet/login`, with
-the `stable` or `preview` environment and the `NUGET_USER` profile-name secret.
-See [trusted publishing setup](docs/nuget-publishing.md) for the exact policy
-fields and mirroring existing SDK `0.2.0` without rebuilding its original package.
-The resulting `sdk-vVERSION` Release contains one `.nupkg`, two native runner
-archives, the specification/vectors archive and `sdk-release.json` with source
-SHA, asset names, lengths and SHA256. Existing tags and assets are never replaced.
-Downstream consumers pin those hashes before adding the package to a local feed.
-The conformance runner covers the controlled memory-source profile; a provider
-repository also needs its own real-storage and crash-recovery tests.
+The canonical SDK, protocol and conformance tools live in the independent SDK repository. The sample uses the exact SDK version declared in its project and lock file. [Adapter SDK](https://github.com/mirrorpulse/adapter-sdk) · [Adapter documentation](https://mirrorpulse.github.io/adapter/)

@@ -8,16 +8,7 @@ $product = [IO.Path]::GetFullPath($ProductRepositoryPath)
 $manifest = Get-Content -LiteralPath (Join-Path $assets 'provider-release.json') -Raw | ConvertFrom-Json
 $package = Join-Path $assets (@($manifest.files | Where-Object { $_.name.EndsWith('.mpadapter', [StringComparison]::Ordinal) })[0].name)
 $runtime = if ([Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture -eq [Runtime.InteropServices.Architecture]::Arm64) { 'win-arm64' } else { 'win-x64' }
-$unpacked = Join-Path ([IO.Path]::GetFullPath('artifacts/signed-process')) ([Guid]::NewGuid().ToString('N'))
-[IO.Compression.ZipFile]::ExtractToDirectory($package, $unpacked)
-foreach ($project in @('src/MirrorPulse.Adapter.Sdk/MirrorPulse.Adapter.Sdk.csproj', 'tools/MirrorPulse.Adapter.Conformance/MirrorPulse.Adapter.Conformance.csproj')) {
-    & dotnet restore $project --locked-mode
-    if ($LASTEXITCODE -ne 0) { throw 'Conformance locked restore failed.' }
-    & dotnet build $project -c Release --no-restore
-    if ($LASTEXITCODE -ne 0) { throw 'Conformance build failed.' }
-}
-& dotnet run --project tools/MirrorPulse.Adapter.Conformance -c Release --no-build -- --worker (Join-Path $unpacked "worker/$runtime/MirrorPulse.Adapter.Worker.exe") --transfer-cache (Join-Path $unpacked 'transfers')
-if ($LASTEXITCODE -ne 0) { throw 'Actual signed Worker wire conformance failed.' }
+& (Join-Path $PSScriptRoot 'verify-template-worker.ps1') -PackagePath $package
 $names = @('MP_TEMPLATE_PACKAGE', 'MP_TEMPLATE_PUBLIC_KEY', 'MP_TEMPLATE_OFFICIAL_SIGNED')
 $previous = @{}
 foreach ($name in $names) { $previous[$name] = [Environment]::GetEnvironmentVariable($name, 'Process') }

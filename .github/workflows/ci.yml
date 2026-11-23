@@ -20,28 +20,19 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-          path: template
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          repository: MirrorPulse/MirrorPulse
-          ref: 44cc42f0ae90a0f9f4822595cd0a07320e456ff0
-          persist-credentials: false
-          path: product
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          global-json-file: template/global.json
-      - name: Verify Adapter build
-        working-directory: template
+          global-json-file: global.json
+      - name: Verify the locked sample build
         run: pwsh ./eng/verify.ps1
-      - name: Verify hostile release inputs and dual-RID packaging without production keys
-        working-directory: template
-        run: pwsh -NoProfile -File eng/verify-release.ps1
-      - name: Generate a fresh repository and verify signed installation in the pinned product
-        working-directory: template
-        run: pwsh -NoProfile -File eng/verify-generated-template.ps1 -ProductRepositoryPath ../product
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
-        if: always()
+      - name: Verify release inputs and dual-RID signing
+        run: pwsh ./eng/verify-release.ps1
+      - name: Build a fresh template and run its signed Worker
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: pwsh ./eng/verify-generated-template.ps1
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: template-conformance-${{ matrix.runner }}
-          path: template/artifacts/generated/**/artifacts/product-conformance/*.trx
+          path: artifacts/generated/**/artifacts/template-conformance.json
           if-no-files-found: error

@@ -13,7 +13,7 @@ try {
         $Version = $manifest.version
     }
     $env:MP_RELEASE_VERSION = $Version
-    $output = @(& './eng/pack-adapter.ps1')
+    $output = @(& './eng/pack-adapter.ps1' -OutputDirectory (Join-Path $PSScriptRoot 'artifacts/release'))
     $package = [string]$output[-1]
     if (-not (Test-Path -LiteralPath $package -PathType Leaf)) { throw 'The package build produced no file.' }
 

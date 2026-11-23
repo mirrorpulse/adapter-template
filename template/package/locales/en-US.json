@@ -1,4 +1,6 @@
 {
-  "label": "Example Adapter",
-  "description": "Replace this resource with the Adapter's localized metadata."
+  "sample.title": "Sample storage Adapter",
+  "sample.description": "An in-memory storage source for testing an Adapter deployment.",
+  "sample.setup": "Sample storage",
+  "sample.instructions": "Choose a folder name in MirrorPulse. The sample starts with a readme file. Changes are discarded when the Worker exits."
 }

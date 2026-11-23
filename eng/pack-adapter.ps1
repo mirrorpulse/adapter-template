@@ -24,9 +24,11 @@ foreach ($runtime in @('win-x64', 'win-arm64')) {
     if ($workers.Count -ne 1) { throw 'Exactly one Worker apphost must be produced.' }
     Rename-Item -LiteralPath $workers[0].FullName -NewName 'MirrorPulse.Adapter.Worker.exe'
 }
-New-Item -ItemType Directory -Path (Join-Path $packageRoot 'locales') -Force | Out-Null
+foreach ($resource in @('assets', 'forms', 'locales')) {
+    $source = Join-Path $PSScriptRoot "../template/package/$resource"
+    Copy-Item -LiteralPath $source -Destination (Join-Path $packageRoot $resource) -Recurse
+}
 $manifest | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath (Join-Path $packageRoot 'manifest.json') -Encoding utf8
-@{ displayName = $settings.label } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $packageRoot 'locales/en-US.json') -Encoding utf8
 $packagePath = Join-Path $root "$($manifest.adapterId)-$version.mpadapter"
 $stream = [IO.File]::Open($packagePath, [IO.FileMode]::CreateNew)
 $archive = [IO.Compression.ZipArchive]::new($stream, [IO.Compression.ZipArchiveMode]::Create)

@@ -9,6 +9,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../src/MirrorPulse.Adapter.Sdk/MirrorPulse.Adapter.Sdk.csproj" />
+    <PackageReference Include="MirrorPulse.Adapter.Sdk" Version="[1.0.0-preview.4]" />
   </ItemGroup>
 </Project>
