@@ -24,6 +24,17 @@ inventory, and restore, lock and run a fresh consumer using only a local feed.
 The SDK package contains the public library and metadata, with no Worker,
 Host database, configuration, signing key or user data.
 
+## Build a local package
+
+On Windows, double-click `Build-Adapter.cmd` to restore the locked Worker dependencies,
+build the x64 and ARM64 payloads, and sign and verify a test package. Open the
+result printed under `artifacts/release`. This requires PowerShell 7 and the .NET
+SDK selected by `global.json`.
+
+Run `pwsh ./Build-Adapter.ps1 -Version 1.0.0-preview.1` to select a version.
+Use `-ReleaseSignature` with your configured signing environment when preparing
+a release candidate. The build commands write only local package artifacts.
+
 ## Layout
 
 - `src/` contains reusable Worker SDK code.
