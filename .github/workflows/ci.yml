@@ -27,12 +27,44 @@ jobs:
         run: pwsh ./eng/verify.ps1
       - name: Verify release inputs and dual-RID signing
         run: pwsh ./eng/verify-release.ps1
-      - name: Build a fresh template and run its signed Worker
+      - name: Resolve the product verifier revision
+        id: product-verifier
+        shell: pwsh
+        run: |
+          $source = (Get-Content -Raw -LiteralPath eng/release-settings.json | ConvertFrom-Json).productVerifierSource
+          if ($source -cnotmatch '\A[0-9a-f]{40}\z') { throw 'The product verifier revision must be a full commit SHA.' }
+          "source=$source" | Out-File -LiteralPath $env:GITHUB_OUTPUT -Append -Encoding utf8
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: mirrorpulse/MirrorPulse
+          ref: ${{ steps.product-verifier.outputs.source }}
+          persist-credentials: false
+          path: artifacts/product-verifier
+      - name: Build a fresh template and run its signed Worker in the SDK and product Host
         env:
           GH_TOKEN: ${{ github.token }}
-        run: pwsh ./eng/verify-generated-template.ps1
+        run: pwsh ./eng/verify-generated-template.ps1 -ProductRepositoryPath artifacts/product-verifier
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: template-conformance-${{ matrix.runner }}
-          path: artifacts/generated/**/artifacts/template-conformance.json
+          path: |
+            artifacts/generated/**/template-conformance.json
+            artifacts/generated/**/product-host/*.trx
           if-no-files-found: error
+
+  portable-launcher:
+    name: cross-build from ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
+      - name: Build and verify the dual-RID Windows package
+        run: ./build-adapter.sh

@@ -11,12 +11,12 @@ $root = Join-Path ([IO.Path]::GetFullPath($OutputDirectory)) ([Guid]::NewGuid().
 $packageRoot = Join-Path $root 'payload'
 New-Item -ItemType Directory -Path $packageRoot -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot '../LICENSE') -Destination (Join-Path $packageRoot 'LICENSE')
-& dotnet restore $settings.workerProject --locked-mode
+& dotnet restore $settings.workerProject --locked-mode | Out-Host
 if ($LASTEXITCODE -ne 0) { throw 'Worker locked restore failed.' }
 foreach ($runtime in @('win-x64', 'win-arm64')) {
     $output = Join-Path $root "publish/$runtime"
-    & dotnet publish $settings.workerProject --configuration Release --runtime $runtime --self-contained false --output $output --no-restore
-    if ($LASTEXITCODE -ne 0) { throw 'Worker publish failed.' }
+    & dotnet publish $settings.workerProject --configuration Release --runtime $runtime --self-contained false --output $output --no-restore | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw "Worker publish failed for $runtime." }
     $destination = Join-Path $packageRoot "worker/$runtime"
     New-Item -ItemType Directory -Path $destination -Force | Out-Null
     Get-ChildItem -LiteralPath $output | Copy-Item -Destination $destination -Recurse -Force
