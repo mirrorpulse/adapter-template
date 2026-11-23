@@ -31,6 +31,10 @@ build the x64 and ARM64 payloads, and sign and verify a test package. Open the
 result printed under `artifacts/release`. This requires PowerShell 7 and the .NET
 SDK selected by `global.json`.
 
+On macOS and Linux, `./build-adapter.sh` invokes the same PowerShell script and
+cross-builds Windows Worker payloads. The .NET SDK must support the requested
+runtime targets. Run Worker and Host conformance on Windows.
+
 Run `pwsh ./Build-Adapter.ps1 -Version 1.0.0-preview.1` to select a version.
 Use `-ReleaseSignature` with your configured signing environment when preparing
 a release candidate. The build commands write only local package artifacts.
