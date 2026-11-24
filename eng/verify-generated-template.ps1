@@ -1,52 +1,61 @@
 [CmdletBinding()]
-param([Parameter(Mandatory)][string]$ProductRepositoryPath)
+param([string]$LocalCandidateDirectory, [string]$ProductRepositoryPath, [switch]$CheckReleasePolicy)
+
 $ErrorActionPreference = 'Stop'
 $repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-$product = [IO.Path]::GetFullPath($ProductRepositoryPath)
-if (-not (Test-Path -LiteralPath (Join-Path $product 'MirrorPulse.sln'))) { throw 'A pinned MirrorPulse checkout is required.' }
-$generated = Join-Path $repository ('artifacts/generated/' + [Guid]::NewGuid().ToString('N'))
-New-Item -ItemType Directory -Path $generated -Force | Out-Null
-$files = @(& git -C $repository ls-files)
-if ($LASTEXITCODE -ne 0 -or $files.Count -eq 0) { throw 'Cannot enumerate template source.' }
-foreach ($file in $files) {
-    . (Join-Path $PSScriptRoot 'release-policy.ps1')
-    Assert-AdapterPackagePath $file
-    $destination = Join-Path $generated $file
-    New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
-    Copy-Item -LiteralPath (Join-Path $repository $file) -Destination $destination
+$product = if ($ProductRepositoryPath) { (Resolve-Path -LiteralPath $ProductRepositoryPath).Path }
+$runId = [guid]::NewGuid().ToString('N')
+$evidence = Join-Path $repository ('artifacts/generated/' + $runId)
+# Keep MSBuild's native apphost paths short even when the template checkout is deeply nested.
+$temporaryRoot = [IO.Path]::TrimEndingDirectorySeparator((Resolve-Path -LiteralPath ([IO.Path]::GetTempPath())).Path)
+$generated = Join-Path $temporaryRoot ('mp-template-' + $runId)
+New-Item -ItemType Directory -Path $generated, $evidence | Out-Null
+$workingDirectory = (Resolve-Path -LiteralPath $generated).Path
+if ([IO.Path]::GetDirectoryName($workingDirectory) -ne $temporaryRoot) {
+    throw 'The generated repository is outside the temporary directory.'
 }
-& git -C $generated init --quiet
-if ($LASTEXITCODE -ne 0) { throw 'Generated repository initialization failed.' }
-$previousVersion = $env:MP_RELEASE_VERSION
-$previousEvent = $env:MP_RELEASE_EVENT
-$previousPackage = $env:MP_TEMPLATE_PACKAGE
-$previousKey = $env:MP_TEMPLATE_PUBLIC_KEY
-Push-Location $generated
+
 try {
-    & ./eng/verify.ps1
-    $env:MP_RELEASE_EVENT = 'workflow_dispatch'
-    $env:MP_RELEASE_VERSION = '0.1.0'
-    $output = @(& ./eng/pack-adapter.ps1)
-    $package = [string]$output[-1]
-    & ./eng/sign-adapter.ps1 -PackagePath $package -DryRun
-    $env:MP_TEMPLATE_PACKAGE = $package
-    $env:MP_TEMPLATE_PUBLIC_KEY = $package + '.public.pem'
-    Push-Location $product
+    $files = @(git -C $repository ls-files)
+    if ($LASTEXITCODE -ne 0 -or $files.Count -eq 0) { throw 'Could not enumerate tracked template files.' }
+    . (Join-Path $PSScriptRoot 'release-policy.ps1')
+    foreach ($file in $files) {
+        Assert-AdapterPackagePath $file
+        $destination = Join-Path $workingDirectory $file
+        New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
+        Copy-Item -LiteralPath (Join-Path $repository $file) -Destination $destination
+    }
+    git -C $workingDirectory init --quiet
+    if ($LASTEXITCODE -ne 0) { throw 'Could not initialize the generated template repository.' }
+
+    Push-Location -LiteralPath $workingDirectory
     try {
-        & dotnet restore MirrorPulse.sln --locked-mode --packages artifacts/preview3-public-cache --source https://api.nuget.org/v3/index.json
-        if ($LASTEXITCODE -ne 0) { throw 'Pinned product locked restore failed.' }
-        $results = Join-Path $generated 'artifacts/product-conformance'
-        & dotnet test tests/MirrorPulse.Core.Tests/MirrorPulse.Core.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~SignedTemplateWorkerProcessTests --logger 'trx;LogFileName=template.trx' --results-directory $results
-        if ($LASTEXITCODE -ne 0) { throw 'Production package conformance failed.' }
-        [xml]$trx = Get-Content -LiteralPath (Join-Path $results 'template.trx') -Raw
-        $counts = $trx.TestRun.ResultSummary.Counters
-        if ($counts.total -ne 1 -or $counts.executed -ne 1 -or $counts.passed -ne 1) { throw 'The actual package gate must execute without skips.' }
-    } finally { Pop-Location }
-} finally {
-    Pop-Location
-    $env:MP_RELEASE_VERSION = $previousVersion
-    $env:MP_RELEASE_EVENT = $previousEvent
-    $env:MP_TEMPLATE_PACKAGE = $previousPackage
-    $env:MP_TEMPLATE_PUBLIC_KEY = $previousKey
+        $buildArgs = @{}
+        if ($CheckReleasePolicy) { $buildArgs.Version = '0.1.0-preview.1' }
+        $output = @(& ./Build-Adapter.ps1 @buildArgs)
+        $package = [string]$output[-1]
+        if (-not (Test-Path -LiteralPath $package -PathType Leaf)) { throw 'The generated template did not create a package.' }
+        git check-ignore -- $package | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'Generated Adapter packages must be ignored by Git.' }
+        if ($CheckReleasePolicy) { & ./eng/verify-release.ps1 -SignedPreviewPackagePath $package }
+        & ./eng/verify-template-worker.ps1 -PackagePath $package -LocalCandidateDirectory $LocalCandidateDirectory
+        if ($product) {
+            & ./eng/verify-template-product.ps1 -PackagePath $package -ProductRepositoryPath $product `
+                -ResultsDirectory (Join-Path $evidence 'product-host')
+        }
+        [ordered]@{
+            schemaVersion = 1
+            verified = $true
+            releasePolicyVerified = $CheckReleasePolicy.IsPresent
+            productHostVerified = [bool]$product
+            packageSha256 = (Get-FileHash -LiteralPath $package).Hash.ToLowerInvariant()
+        } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $evidence 'template-conformance.json')
+    }
+    finally { Pop-Location }
 }
-Write-Host 'Generated repository, signed installation and actual Worker conformance passed.'
+finally {
+    $cleanupPath = (Resolve-Path -LiteralPath $workingDirectory).Path
+    if ($cleanupPath -eq $workingDirectory -and [IO.Path]::GetDirectoryName($cleanupPath) -eq $temporaryRoot) {
+        Remove-Item -LiteralPath $cleanupPath -Recurse -Force
+    }
+}
