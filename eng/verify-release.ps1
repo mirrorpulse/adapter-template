@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param()
+param([string]$SignedPreviewPackagePath)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'release-policy.ps1')
 foreach ($script in Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.ps1') {
@@ -36,8 +36,13 @@ $previousEvent = $env:MP_RELEASE_EVENT
 try {
     $env:MP_RELEASE_EVENT = 'workflow_dispatch'
     $env:MP_RELEASE_VERSION = '0.1.0-preview.1'
-    $output = @(& (Join-Path $PSScriptRoot 'pack-adapter.ps1'))
-    $package = [string]$output[-1]
+    if ($SignedPreviewPackagePath) {
+        $package = (Resolve-Path -LiteralPath $SignedPreviewPackagePath).Path
+    }
+    else {
+        $output = @(& (Join-Path $PSScriptRoot 'pack-adapter.ps1'))
+        $package = [string]$output[-1]
+    }
     $expectedIdentity = (Get-Content -LiteralPath (Join-Path $PSScriptRoot 'release-manifest.json') -Raw | ConvertFrom-Json).adapterId
     if ([IO.Path]::GetFileName($package) -cne "$expectedIdentity-0.1.0-preview.1.mpadapter") { throw 'The preview package filename differs from its identity.' }
     $zip = [IO.Compression.ZipFile]::OpenRead($package)
@@ -48,7 +53,12 @@ try {
         if ($manifest.version -cne $env:MP_RELEASE_VERSION) { throw 'The package manifest version differs from its filename.' }
     } finally { $zip.Dispose() }
     Assert-AdapterPackageIdentity -PackagePath $package -ExpectedVersion $env:MP_RELEASE_VERSION
-    & (Join-Path $PSScriptRoot 'sign-adapter.ps1') -PackagePath $package -DryRun
+    if ($SignedPreviewPackagePath) {
+        & (Join-Path $PSScriptRoot 'verify-adapter-signature.ps1') -PackagePath $package | Out-Host
+    }
+    else {
+        & (Join-Path $PSScriptRoot 'sign-adapter.ps1') -PackagePath $package -DryRun
+    }
     foreach ($wrongIdentity in @('0.1.0', '0.1.0-preview.2')) {
         $rejected = $false
         try { Assert-AdapterPackageIdentity -PackagePath $package -ExpectedVersion $wrongIdentity } catch { $rejected = $true }

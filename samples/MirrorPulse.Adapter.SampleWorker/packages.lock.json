@@ -2,8 +2,11 @@
   "version": 1,
   "dependencies": {
     "net10.0-windows7.0": {
-      "mirrorpulse.adapter.sdk": {
-        "type": "Project"
+      "MirrorPulse.Adapter.Sdk": {
+        "type": "Direct",
+        "requested": "[1.0.0, 1.0.0]",
+        "resolved": "1.0.0",
+        "contentHash": "dImLOgZbcljos7ejP8dwWGdVqvckNJC6u98A3nKj15IRZF9aL6OYJFvuo4CEIxIo11MMHw9yVytetpSUuZQ/9Q=="
       }
     },
     "net10.0-windows7.0/win-arm64": {},

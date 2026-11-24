@@ -1,4 +1,5 @@
 {
   "workerProject": "samples/MirrorPulse.Adapter.SampleWorker/MirrorPulse.Adapter.SampleWorker.csproj",
-  "label": "Sample"
+  "label": "Sample",
+  "productVerifierSource": "71ad6a8e97a36ab980d84b0589ff869c8c38ef3f"
 }

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "adapterId": "com.example.mirrorpulse.adapter",
   "publisher": "Example Publisher",
   "version": "0.1.0",
@@ -16,19 +16,13 @@
   },
   "instancePolicy": {
     "maximumInstances": null,
-    "maximumRootDefinitions": null
+    "maximumRootDefinitions": 1
   },
   "rootDefinitions": [
     {
-      "label": "Memory left",
-      "key": "left",
-      "directoryName": "Memory left",
-      "customEntry": false
-    },
-    {
-      "label": "Memory right",
-      "key": "right",
-      "directoryName": "Memory right",
+      "label": "Sample",
+      "key": "sample",
+      "directoryName": "Sample",
       "customEntry": false
     }
   ],
@@ -47,5 +41,11 @@
       "resourcePath": "locales/en-US.json"
     }
   },
-  "minimumMirrorPulseVersion": "1.0.0"
+  "minimumMirrorPulseVersion": "1.0.0",
+  "presentation": {
+    "titleKey": "sample.title",
+    "descriptionKey": "sample.description",
+    "logoPath": "assets/logo.png",
+    "formPath": "forms/config.xml"
+  }
 }

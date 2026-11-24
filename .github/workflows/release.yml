@@ -150,10 +150,18 @@ jobs:
           ref: ${{ needs.resolve.outputs.source_sha }}
           persist-credentials: false
           path: provider
+      - name: Resolve the product verifier revision
+        id: product-verifier
+        working-directory: provider
+        shell: pwsh
+        run: |
+          $source = (Get-Content -Raw -LiteralPath eng/release-settings.json | ConvertFrom-Json).productVerifierSource
+          if ($source -cnotmatch '\A[0-9a-f]{40}\z') { throw 'The product verifier revision must be a full commit SHA.' }
+          "source=$source" | Out-File -LiteralPath $env:GITHUB_OUTPUT -Append -Encoding utf8
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: MirrorPulse/MirrorPulse
-          ref: 967f7cadf16ff8f52812e8df39114841b8777a99
+          ref: ${{ steps.product-verifier.outputs.source }}
           persist-credentials: false
           path: product
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
